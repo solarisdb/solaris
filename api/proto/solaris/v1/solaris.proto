@@ -1,5 +1,116 @@
 syntax = "proto3";
 
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/empty.proto";
+
 package solaris.v1;
 option go_package = "./solaris/v1;solaris";
 
+// Service exposes the public interface for the Solaris DB
+service Service {
+  // CreateLog creates then new log
+  rpc CreateLog(Log) returns (google.protobuf.Empty);
+  // UpdateLog changes the log settings (tags)
+  rpc UpdateLog(Log) returns (Log);
+  // QueryLogs requests list of logs by the query request ordered by the log IDs ascending order
+  rpc QueryLogs(QueryLogsRequest) returns (QueryLogsResult);
+  // DeleteLogs removes one or more logs
+  rpc DeleteLogs(DeleteLogsRequest) returns (DeleteLogsResult);
+  // AppendRecords appends a bunch of records to the log
+  rpc AppendRecords(AppendRecordsRequest) returns (Log);
+  // QueryRecords read records from one or many logs, merging them together into the result set
+  // sorted in ascending or descending order by the records IDs (timestamps)
+  rpc QueryRecords(QueryRecordsRequest) returns (QueryRecordsResult);
+}
+
+// Record represents one record of a log
+message Record {
+  // id is the record unique identifier. A record ID is ULID, so it is soreted and globaly unique.
+  string id = 1;
+  // logID is the log identifier the record is associated with. In a bunch result the field may be empty,
+  // this case the logID is same as for the previous record in the batch
+  optional string logID = 2;
+  // createdAt the timestamp when the record was added to the DB
+  optional google.protobuf.Timestamp createdAt = 3;
+  // payload is the record data
+  bytes payload = 4;
+}
+
+// Log describes a log in the database. Logs are distinguished by their IDs only
+message Log {
+  // id of the log. It is ULID, so every log has a globaly unique ID
+  string id = 1;
+  // tags is a map of tags and their values associated with the log
+  map<string, string> tags = 2;
+  // createdAt is the timestamp when the log was created
+  google.protobuf.Timestamp createdAt = 3;
+  // updatedAt is the timestamp when the log was updated (new records added or tags are applied)
+  google.protobuf.Timestamp updatedAt = 4;
+  // records is the number of records in the log
+  int64 records = 5;
+}
+
+// AppendRecordsRequest describes the parameters for AppendRecords() call
+message AppendRecordsRequest {
+  // logID is where the new records will be added
+  string logID = 1;
+  // records the list of records to be added
+  repeated Record records = 2;
+}
+
+// QueryLogsRequest allows to read multiple Log objects per one request
+message QueryLogsRequest {
+  // condition describes the log filter condition
+  string condition = 1;
+  // pageID is provided for paginated results
+  string pageID = 4;
+  // limit contains tha maximum number of Log objects in the result
+  int64 limit = 5;
+}
+
+// QueryLogsResult describes the response for QueryLogsRequest
+message QueryLogsResult {
+  // logs is the list of Log objects in the result
+  repeated Log logs = 1;
+  // nextPageID contains the pageID for reading next portion of the records if any
+  string nextPageID = 2;
+  // total number of records that match the request
+  int64 total = 3;
+}
+
+// DeleteLogsRequest specifies the condition for the deleted logs
+message DeleteLogsRequest {
+  string condition = 1;
+}
+
+// DeleteLogsResult returns the number of Logs deleted
+message DeleteLogsResult {
+  // total contains the number of Logs deleted
+  int64 total = 1;
+}
+
+// QueryRecordsRequest contains arguments for requesting Log(s) records
+message QueryRecordsRequest {
+  // logsCondition allows to specify the filter condition for selecting logs.
+  string logsCondition = 1;
+  // condition allows to specify the filter for the records.
+  string condition = 2;
+  // logIDs allows to specify the list of logs explicitly. If it is provided, then the logsCondition will be ignored.
+  repeated string logIDs = 3;
+  // descending specifies that the result should be sorted in the descending order
+  bool descending = 4;
+  // pageID provides the page ID if pagination is required
+  string pageID = 5;
+  // limit contains the number of records to be returned
+  int64 limit = 6;
+}
+
+// QueryRecordsResult describes the result for the records request
+message QueryRecordsResult {
+  // records is the list of records matched for the request
+  repeated Record records = 1;
+  // nextPageID contains the next page ID for retrieving the next portion of records
+  string nextPageID = 2;
+  // total is the number of records matched to the result
+  int64 total = 3;
+}
