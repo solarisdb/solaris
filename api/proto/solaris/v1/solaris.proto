@@ -1,0 +1,5 @@
+syntax = "proto3";
+
+package solaris.v1;
+option go_package = "./solaris/v1;solaris";
+
