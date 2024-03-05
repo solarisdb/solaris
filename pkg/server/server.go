@@ -27,7 +27,7 @@ import (
 	ggrpc "google.golang.org/grpc"
 )
 
-// Run is an entry point of the Simila server
+// Run is an entry point of the Solaris server
 func Run(ctx context.Context, cfg *Config) error {
 	log := logging.NewLogger("server")
 	log.Infof("starting server: %s", version.BuildVersionString())

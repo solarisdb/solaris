@@ -9,7 +9,10 @@ package solaris
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
+	emptypb "google.golang.org/protobuf/types/known/emptypb"
+	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
 	reflect "reflect"
+	sync "sync"
 )
 
 const (
@@ -19,22 +22,780 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+// Record represents one record of a log
+type Record struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	// id is the record unique identifier. A record ID is ULID, so it is soreted and globaly unique.
+	Id string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	// logID is the log identifier the record is associated with. In a bunch result the field may be empty,
+	// this case the logID is same as for the previous record in the batch
+	LogID *string `protobuf:"bytes,2,opt,name=logID,proto3,oneof" json:"logID,omitempty"`
+	// createdAt the timestamp when the record was added to the DB
+	CreatedAt *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=createdAt,proto3,oneof" json:"createdAt,omitempty"`
+	// payload is the record data
+	Payload []byte `protobuf:"bytes,4,opt,name=payload,proto3" json:"payload,omitempty"`
+}
+
+func (x *Record) Reset() {
+	*x = Record{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_solaris_proto_msgTypes[0]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *Record) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Record) ProtoMessage() {}
+
+func (x *Record) ProtoReflect() protoreflect.Message {
+	mi := &file_solaris_proto_msgTypes[0]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Record.ProtoReflect.Descriptor instead.
+func (*Record) Descriptor() ([]byte, []int) {
+	return file_solaris_proto_rawDescGZIP(), []int{0}
+}
+
+func (x *Record) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *Record) GetLogID() string {
+	if x != nil && x.LogID != nil {
+		return *x.LogID
+	}
+	return ""
+}
+
+func (x *Record) GetCreatedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.CreatedAt
+	}
+	return nil
+}
+
+func (x *Record) GetPayload() []byte {
+	if x != nil {
+		return x.Payload
+	}
+	return nil
+}
+
+// Log describes a log in the database. Logs are distinguished by their IDs only
+type Log struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	// id of the log. It is ULID, so every log has a globaly unique ID
+	Id string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	// tags is a map of tags and their values associated with the log
+	Tags map[string]string `protobuf:"bytes,2,rep,name=tags,proto3" json:"tags,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
+	// createdAt is the timestamp when the log was created
+	CreatedAt *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=createdAt,proto3" json:"createdAt,omitempty"`
+	// updatedAt is the timestamp when the log was updated (new records added or tags are applied)
+	UpdatedAt *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=updatedAt,proto3" json:"updatedAt,omitempty"`
+	// records is the number of records in the log
+	Records int64 `protobuf:"varint,5,opt,name=records,proto3" json:"records,omitempty"`
+}
+
+func (x *Log) Reset() {
+	*x = Log{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_solaris_proto_msgTypes[1]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *Log) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Log) ProtoMessage() {}
+
+func (x *Log) ProtoReflect() protoreflect.Message {
+	mi := &file_solaris_proto_msgTypes[1]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Log.ProtoReflect.Descriptor instead.
+func (*Log) Descriptor() ([]byte, []int) {
+	return file_solaris_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *Log) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *Log) GetTags() map[string]string {
+	if x != nil {
+		return x.Tags
+	}
+	return nil
+}
+
+func (x *Log) GetCreatedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.CreatedAt
+	}
+	return nil
+}
+
+func (x *Log) GetUpdatedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.UpdatedAt
+	}
+	return nil
+}
+
+func (x *Log) GetRecords() int64 {
+	if x != nil {
+		return x.Records
+	}
+	return 0
+}
+
+// AppendRecordsRequest describes the parameters for AppendRecords() call
+type AppendRecordsRequest struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	// logID is where the new records will be added
+	LogID string `protobuf:"bytes,1,opt,name=logID,proto3" json:"logID,omitempty"`
+	// records the list of records to be added
+	Records []*Record `protobuf:"bytes,2,rep,name=records,proto3" json:"records,omitempty"`
+}
+
+func (x *AppendRecordsRequest) Reset() {
+	*x = AppendRecordsRequest{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_solaris_proto_msgTypes[2]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *AppendRecordsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AppendRecordsRequest) ProtoMessage() {}
+
+func (x *AppendRecordsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_solaris_proto_msgTypes[2]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AppendRecordsRequest.ProtoReflect.Descriptor instead.
+func (*AppendRecordsRequest) Descriptor() ([]byte, []int) {
+	return file_solaris_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *AppendRecordsRequest) GetLogID() string {
+	if x != nil {
+		return x.LogID
+	}
+	return ""
+}
+
+func (x *AppendRecordsRequest) GetRecords() []*Record {
+	if x != nil {
+		return x.Records
+	}
+	return nil
+}
+
+// QueryLogsRequest allows to read multiple Log objects per one request
+type QueryLogsRequest struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	// condition describes the log filter condition
+	Condition string `protobuf:"bytes,1,opt,name=condition,proto3" json:"condition,omitempty"`
+	// pageID is provided for paginated results
+	PageID string `protobuf:"bytes,4,opt,name=pageID,proto3" json:"pageID,omitempty"`
+	// limit contains tha maximum number of Log objects in the result
+	Limit int64 `protobuf:"varint,5,opt,name=limit,proto3" json:"limit,omitempty"`
+}
+
+func (x *QueryLogsRequest) Reset() {
+	*x = QueryLogsRequest{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_solaris_proto_msgTypes[3]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *QueryLogsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*QueryLogsRequest) ProtoMessage() {}
+
+func (x *QueryLogsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_solaris_proto_msgTypes[3]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use QueryLogsRequest.ProtoReflect.Descriptor instead.
+func (*QueryLogsRequest) Descriptor() ([]byte, []int) {
+	return file_solaris_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *QueryLogsRequest) GetCondition() string {
+	if x != nil {
+		return x.Condition
+	}
+	return ""
+}
+
+func (x *QueryLogsRequest) GetPageID() string {
+	if x != nil {
+		return x.PageID
+	}
+	return ""
+}
+
+func (x *QueryLogsRequest) GetLimit() int64 {
+	if x != nil {
+		return x.Limit
+	}
+	return 0
+}
+
+// QueryLogsResult describes the response for QueryLogsRequest
+type QueryLogsResult struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	// logs is the list of Log objects in the result
+	Logs []*Log `protobuf:"bytes,1,rep,name=logs,proto3" json:"logs,omitempty"`
+	// nextPageID contains the pageID for reading next portion of the records if any
+	NextPageID string `protobuf:"bytes,2,opt,name=nextPageID,proto3" json:"nextPageID,omitempty"`
+	// total number of records that match the request
+	Total int64 `protobuf:"varint,3,opt,name=total,proto3" json:"total,omitempty"`
+}
+
+func (x *QueryLogsResult) Reset() {
+	*x = QueryLogsResult{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_solaris_proto_msgTypes[4]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *QueryLogsResult) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*QueryLogsResult) ProtoMessage() {}
+
+func (x *QueryLogsResult) ProtoReflect() protoreflect.Message {
+	mi := &file_solaris_proto_msgTypes[4]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use QueryLogsResult.ProtoReflect.Descriptor instead.
+func (*QueryLogsResult) Descriptor() ([]byte, []int) {
+	return file_solaris_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *QueryLogsResult) GetLogs() []*Log {
+	if x != nil {
+		return x.Logs
+	}
+	return nil
+}
+
+func (x *QueryLogsResult) GetNextPageID() string {
+	if x != nil {
+		return x.NextPageID
+	}
+	return ""
+}
+
+func (x *QueryLogsResult) GetTotal() int64 {
+	if x != nil {
+		return x.Total
+	}
+	return 0
+}
+
+// DeleteLogsRequest specifies the condition for the deleted logs
+type DeleteLogsRequest struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Condition string `protobuf:"bytes,1,opt,name=condition,proto3" json:"condition,omitempty"`
+}
+
+func (x *DeleteLogsRequest) Reset() {
+	*x = DeleteLogsRequest{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_solaris_proto_msgTypes[5]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *DeleteLogsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeleteLogsRequest) ProtoMessage() {}
+
+func (x *DeleteLogsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_solaris_proto_msgTypes[5]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DeleteLogsRequest.ProtoReflect.Descriptor instead.
+func (*DeleteLogsRequest) Descriptor() ([]byte, []int) {
+	return file_solaris_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *DeleteLogsRequest) GetCondition() string {
+	if x != nil {
+		return x.Condition
+	}
+	return ""
+}
+
+// DeleteLogsResult returns the number of Logs deleted
+type DeleteLogsResult struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	// total contains the number of Logs deleted
+	Total int64 `protobuf:"varint,1,opt,name=total,proto3" json:"total,omitempty"`
+}
+
+func (x *DeleteLogsResult) Reset() {
+	*x = DeleteLogsResult{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_solaris_proto_msgTypes[6]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *DeleteLogsResult) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeleteLogsResult) ProtoMessage() {}
+
+func (x *DeleteLogsResult) ProtoReflect() protoreflect.Message {
+	mi := &file_solaris_proto_msgTypes[6]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DeleteLogsResult.ProtoReflect.Descriptor instead.
+func (*DeleteLogsResult) Descriptor() ([]byte, []int) {
+	return file_solaris_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *DeleteLogsResult) GetTotal() int64 {
+	if x != nil {
+		return x.Total
+	}
+	return 0
+}
+
+// QueryRecordsRequest contains arguments for requesting Log(s) records
+type QueryRecordsRequest struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	// logsCondition allows to specify the filter condition for selecting logs.
+	LogsCondition string `protobuf:"bytes,1,opt,name=logsCondition,proto3" json:"logsCondition,omitempty"`
+	// condition allows to specify the filter for the records.
+	Condition string `protobuf:"bytes,2,opt,name=condition,proto3" json:"condition,omitempty"`
+	// logIDs allows to specify the list of logs explicitly. If it is provided, then the logsCondition will be ignored.
+	LogIDs []string `protobuf:"bytes,3,rep,name=logIDs,proto3" json:"logIDs,omitempty"`
+	// descending specifies that the result should be sorted in the descending order
+	Descending bool `protobuf:"varint,4,opt,name=descending,proto3" json:"descending,omitempty"`
+	// pageID provides the page ID if pagination is required
+	PageID string `protobuf:"bytes,5,opt,name=pageID,proto3" json:"pageID,omitempty"`
+	// limit contains the number of records to be returned
+	Limit int64 `protobuf:"varint,6,opt,name=limit,proto3" json:"limit,omitempty"`
+}
+
+func (x *QueryRecordsRequest) Reset() {
+	*x = QueryRecordsRequest{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_solaris_proto_msgTypes[7]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *QueryRecordsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*QueryRecordsRequest) ProtoMessage() {}
+
+func (x *QueryRecordsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_solaris_proto_msgTypes[7]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use QueryRecordsRequest.ProtoReflect.Descriptor instead.
+func (*QueryRecordsRequest) Descriptor() ([]byte, []int) {
+	return file_solaris_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *QueryRecordsRequest) GetLogsCondition() string {
+	if x != nil {
+		return x.LogsCondition
+	}
+	return ""
+}
+
+func (x *QueryRecordsRequest) GetCondition() string {
+	if x != nil {
+		return x.Condition
+	}
+	return ""
+}
+
+func (x *QueryRecordsRequest) GetLogIDs() []string {
+	if x != nil {
+		return x.LogIDs
+	}
+	return nil
+}
+
+func (x *QueryRecordsRequest) GetDescending() bool {
+	if x != nil {
+		return x.Descending
+	}
+	return false
+}
+
+func (x *QueryRecordsRequest) GetPageID() string {
+	if x != nil {
+		return x.PageID
+	}
+	return ""
+}
+
+func (x *QueryRecordsRequest) GetLimit() int64 {
+	if x != nil {
+		return x.Limit
+	}
+	return 0
+}
+
+// QueryRecordsResult describes the result for the records request
+type QueryRecordsResult struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	// records is the list of records matched for the request
+	Records []*Record `protobuf:"bytes,1,rep,name=records,proto3" json:"records,omitempty"`
+	// nextPageID contains the next page ID for retrieving the next portion of records
+	NextPageID string `protobuf:"bytes,2,opt,name=nextPageID,proto3" json:"nextPageID,omitempty"`
+	// total is the number of records matched to the result
+	Total int64 `protobuf:"varint,3,opt,name=total,proto3" json:"total,omitempty"`
+}
+
+func (x *QueryRecordsResult) Reset() {
+	*x = QueryRecordsResult{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_solaris_proto_msgTypes[8]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *QueryRecordsResult) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*QueryRecordsResult) ProtoMessage() {}
+
+func (x *QueryRecordsResult) ProtoReflect() protoreflect.Message {
+	mi := &file_solaris_proto_msgTypes[8]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use QueryRecordsResult.ProtoReflect.Descriptor instead.
+func (*QueryRecordsResult) Descriptor() ([]byte, []int) {
+	return file_solaris_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *QueryRecordsResult) GetRecords() []*Record {
+	if x != nil {
+		return x.Records
+	}
+	return nil
+}
+
+func (x *QueryRecordsResult) GetNextPageID() string {
+	if x != nil {
+		return x.NextPageID
+	}
+	return ""
+}
+
+func (x *QueryRecordsResult) GetTotal() int64 {
+	if x != nil {
+		return x.Total
+	}
+	return 0
+}
+
 var File_solaris_proto protoreflect.FileDescriptor
 
 var file_solaris_proto_rawDesc = []byte{
 	0x0a, 0x0d, 0x73, 0x6f, 0x6c, 0x61, 0x72, 0x69, 0x73, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x12,
-	0x0a, 0x73, 0x6f, 0x6c, 0x61, 0x72, 0x69, 0x73, 0x2e, 0x76, 0x31, 0x42, 0x16, 0x5a, 0x14, 0x2e,
-	0x2f, 0x73, 0x6f, 0x6c, 0x61, 0x72, 0x69, 0x73, 0x2f, 0x76, 0x31, 0x3b, 0x73, 0x6f, 0x6c, 0x61,
-	0x72, 0x69, 0x73, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
+	0x0a, 0x73, 0x6f, 0x6c, 0x61, 0x72, 0x69, 0x73, 0x2e, 0x76, 0x31, 0x1a, 0x1f, 0x67, 0x6f, 0x6f,
+	0x67, 0x6c, 0x65, 0x2f, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x62, 0x75, 0x66, 0x2f, 0x74, 0x69, 0x6d,
+	0x65, 0x73, 0x74, 0x61, 0x6d, 0x70, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x1a, 0x1b, 0x67, 0x6f,
+	0x6f, 0x67, 0x6c, 0x65, 0x2f, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x62, 0x75, 0x66, 0x2f, 0x65, 0x6d,
+	0x70, 0x74, 0x79, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x22, 0xa4, 0x01, 0x0a, 0x06, 0x52, 0x65,
+	0x63, 0x6f, 0x72, 0x64, 0x12, 0x0e, 0x0a, 0x02, 0x69, 0x64, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09,
+	0x52, 0x02, 0x69, 0x64, 0x12, 0x19, 0x0a, 0x05, 0x6c, 0x6f, 0x67, 0x49, 0x44, 0x18, 0x02, 0x20,
+	0x01, 0x28, 0x09, 0x48, 0x00, 0x52, 0x05, 0x6c, 0x6f, 0x67, 0x49, 0x44, 0x88, 0x01, 0x01, 0x12,
+	0x3d, 0x0a, 0x09, 0x63, 0x72, 0x65, 0x61, 0x74, 0x65, 0x64, 0x41, 0x74, 0x18, 0x03, 0x20, 0x01,
+	0x28, 0x0b, 0x32, 0x1a, 0x2e, 0x67, 0x6f, 0x6f, 0x67, 0x6c, 0x65, 0x2e, 0x70, 0x72, 0x6f, 0x74,
+	0x6f, 0x62, 0x75, 0x66, 0x2e, 0x54, 0x69, 0x6d, 0x65, 0x73, 0x74, 0x61, 0x6d, 0x70, 0x48, 0x01,
+	0x52, 0x09, 0x63, 0x72, 0x65, 0x61, 0x74, 0x65, 0x64, 0x41, 0x74, 0x88, 0x01, 0x01, 0x12, 0x18,
+	0x0a, 0x07, 0x70, 0x61, 0x79, 0x6c, 0x6f, 0x61, 0x64, 0x18, 0x04, 0x20, 0x01, 0x28, 0x0c, 0x52,
+	0x07, 0x70, 0x61, 0x79, 0x6c, 0x6f, 0x61, 0x64, 0x42, 0x08, 0x0a, 0x06, 0x5f, 0x6c, 0x6f, 0x67,
+	0x49, 0x44, 0x42, 0x0c, 0x0a, 0x0a, 0x5f, 0x63, 0x72, 0x65, 0x61, 0x74, 0x65, 0x64, 0x41, 0x74,
+	0x22, 0x8b, 0x02, 0x0a, 0x03, 0x4c, 0x6f, 0x67, 0x12, 0x0e, 0x0a, 0x02, 0x69, 0x64, 0x18, 0x01,
+	0x20, 0x01, 0x28, 0x09, 0x52, 0x02, 0x69, 0x64, 0x12, 0x2d, 0x0a, 0x04, 0x74, 0x61, 0x67, 0x73,
+	0x18, 0x02, 0x20, 0x03, 0x28, 0x0b, 0x32, 0x19, 0x2e, 0x73, 0x6f, 0x6c, 0x61, 0x72, 0x69, 0x73,
+	0x2e, 0x76, 0x31, 0x2e, 0x4c, 0x6f, 0x67, 0x2e, 0x54, 0x61, 0x67, 0x73, 0x45, 0x6e, 0x74, 0x72,
+	0x79, 0x52, 0x04, 0x74, 0x61, 0x67, 0x73, 0x12, 0x38, 0x0a, 0x09, 0x63, 0x72, 0x65, 0x61, 0x74,
+	0x65, 0x64, 0x41, 0x74, 0x18, 0x03, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x1a, 0x2e, 0x67, 0x6f, 0x6f,
+	0x67, 0x6c, 0x65, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x62, 0x75, 0x66, 0x2e, 0x54, 0x69, 0x6d,
+	0x65, 0x73, 0x74, 0x61, 0x6d, 0x70, 0x52, 0x09, 0x63, 0x72, 0x65, 0x61, 0x74, 0x65, 0x64, 0x41,
+	0x74, 0x12, 0x38, 0x0a, 0x09, 0x75, 0x70, 0x64, 0x61, 0x74, 0x65, 0x64, 0x41, 0x74, 0x18, 0x04,
+	0x20, 0x01, 0x28, 0x0b, 0x32, 0x1a, 0x2e, 0x67, 0x6f, 0x6f, 0x67, 0x6c, 0x65, 0x2e, 0x70, 0x72,
+	0x6f, 0x74, 0x6f, 0x62, 0x75, 0x66, 0x2e, 0x54, 0x69, 0x6d, 0x65, 0x73, 0x74, 0x61, 0x6d, 0x70,
+	0x52, 0x09, 0x75, 0x70, 0x64, 0x61, 0x74, 0x65, 0x64, 0x41, 0x74, 0x12, 0x18, 0x0a, 0x07, 0x72,
+	0x65, 0x63, 0x6f, 0x72, 0x64, 0x73, 0x18, 0x05, 0x20, 0x01, 0x28, 0x03, 0x52, 0x07, 0x72, 0x65,
+	0x63, 0x6f, 0x72, 0x64, 0x73, 0x1a, 0x37, 0x0a, 0x09, 0x54, 0x61, 0x67, 0x73, 0x45, 0x6e, 0x74,
+	0x72, 0x79, 0x12, 0x10, 0x0a, 0x03, 0x6b, 0x65, 0x79, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52,
+	0x03, 0x6b, 0x65, 0x79, 0x12, 0x14, 0x0a, 0x05, 0x76, 0x61, 0x6c, 0x75, 0x65, 0x18, 0x02, 0x20,
+	0x01, 0x28, 0x09, 0x52, 0x05, 0x76, 0x61, 0x6c, 0x75, 0x65, 0x3a, 0x02, 0x38, 0x01, 0x22, 0x5a,
+	0x0a, 0x14, 0x41, 0x70, 0x70, 0x65, 0x6e, 0x64, 0x52, 0x65, 0x63, 0x6f, 0x72, 0x64, 0x73, 0x52,
+	0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x12, 0x14, 0x0a, 0x05, 0x6c, 0x6f, 0x67, 0x49, 0x44, 0x18,
+	0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x05, 0x6c, 0x6f, 0x67, 0x49, 0x44, 0x12, 0x2c, 0x0a, 0x07,
+	0x72, 0x65, 0x63, 0x6f, 0x72, 0x64, 0x73, 0x18, 0x02, 0x20, 0x03, 0x28, 0x0b, 0x32, 0x12, 0x2e,
+	0x73, 0x6f, 0x6c, 0x61, 0x72, 0x69, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x52, 0x65, 0x63, 0x6f, 0x72,
+	0x64, 0x52, 0x07, 0x72, 0x65, 0x63, 0x6f, 0x72, 0x64, 0x73, 0x22, 0x5e, 0x0a, 0x10, 0x51, 0x75,
+	0x65, 0x72, 0x79, 0x4c, 0x6f, 0x67, 0x73, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x12, 0x1c,
+	0x0a, 0x09, 0x63, 0x6f, 0x6e, 0x64, 0x69, 0x74, 0x69, 0x6f, 0x6e, 0x18, 0x01, 0x20, 0x01, 0x28,
+	0x09, 0x52, 0x09, 0x63, 0x6f, 0x6e, 0x64, 0x69, 0x74, 0x69, 0x6f, 0x6e, 0x12, 0x16, 0x0a, 0x06,
+	0x70, 0x61, 0x67, 0x65, 0x49, 0x44, 0x18, 0x04, 0x20, 0x01, 0x28, 0x09, 0x52, 0x06, 0x70, 0x61,
+	0x67, 0x65, 0x49, 0x44, 0x12, 0x14, 0x0a, 0x05, 0x6c, 0x69, 0x6d, 0x69, 0x74, 0x18, 0x05, 0x20,
+	0x01, 0x28, 0x03, 0x52, 0x05, 0x6c, 0x69, 0x6d, 0x69, 0x74, 0x22, 0x6c, 0x0a, 0x0f, 0x51, 0x75,
+	0x65, 0x72, 0x79, 0x4c, 0x6f, 0x67, 0x73, 0x52, 0x65, 0x73, 0x75, 0x6c, 0x74, 0x12, 0x23, 0x0a,
+	0x04, 0x6c, 0x6f, 0x67, 0x73, 0x18, 0x01, 0x20, 0x03, 0x28, 0x0b, 0x32, 0x0f, 0x2e, 0x73, 0x6f,
+	0x6c, 0x61, 0x72, 0x69, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x4c, 0x6f, 0x67, 0x52, 0x04, 0x6c, 0x6f,
+	0x67, 0x73, 0x12, 0x1e, 0x0a, 0x0a, 0x6e, 0x65, 0x78, 0x74, 0x50, 0x61, 0x67, 0x65, 0x49, 0x44,
+	0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x52, 0x0a, 0x6e, 0x65, 0x78, 0x74, 0x50, 0x61, 0x67, 0x65,
+	0x49, 0x44, 0x12, 0x14, 0x0a, 0x05, 0x74, 0x6f, 0x74, 0x61, 0x6c, 0x18, 0x03, 0x20, 0x01, 0x28,
+	0x03, 0x52, 0x05, 0x74, 0x6f, 0x74, 0x61, 0x6c, 0x22, 0x31, 0x0a, 0x11, 0x44, 0x65, 0x6c, 0x65,
+	0x74, 0x65, 0x4c, 0x6f, 0x67, 0x73, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x12, 0x1c, 0x0a,
+	0x09, 0x63, 0x6f, 0x6e, 0x64, 0x69, 0x74, 0x69, 0x6f, 0x6e, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09,
+	0x52, 0x09, 0x63, 0x6f, 0x6e, 0x64, 0x69, 0x74, 0x69, 0x6f, 0x6e, 0x22, 0x28, 0x0a, 0x10, 0x44,
+	0x65, 0x6c, 0x65, 0x74, 0x65, 0x4c, 0x6f, 0x67, 0x73, 0x52, 0x65, 0x73, 0x75, 0x6c, 0x74, 0x12,
+	0x14, 0x0a, 0x05, 0x74, 0x6f, 0x74, 0x61, 0x6c, 0x18, 0x01, 0x20, 0x01, 0x28, 0x03, 0x52, 0x05,
+	0x74, 0x6f, 0x74, 0x61, 0x6c, 0x22, 0xbf, 0x01, 0x0a, 0x13, 0x51, 0x75, 0x65, 0x72, 0x79, 0x52,
+	0x65, 0x63, 0x6f, 0x72, 0x64, 0x73, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x12, 0x24, 0x0a,
+	0x0d, 0x6c, 0x6f, 0x67, 0x73, 0x43, 0x6f, 0x6e, 0x64, 0x69, 0x74, 0x69, 0x6f, 0x6e, 0x18, 0x01,
+	0x20, 0x01, 0x28, 0x09, 0x52, 0x0d, 0x6c, 0x6f, 0x67, 0x73, 0x43, 0x6f, 0x6e, 0x64, 0x69, 0x74,
+	0x69, 0x6f, 0x6e, 0x12, 0x1c, 0x0a, 0x09, 0x63, 0x6f, 0x6e, 0x64, 0x69, 0x74, 0x69, 0x6f, 0x6e,
+	0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x52, 0x09, 0x63, 0x6f, 0x6e, 0x64, 0x69, 0x74, 0x69, 0x6f,
+	0x6e, 0x12, 0x16, 0x0a, 0x06, 0x6c, 0x6f, 0x67, 0x49, 0x44, 0x73, 0x18, 0x03, 0x20, 0x03, 0x28,
+	0x09, 0x52, 0x06, 0x6c, 0x6f, 0x67, 0x49, 0x44, 0x73, 0x12, 0x1e, 0x0a, 0x0a, 0x64, 0x65, 0x73,
+	0x63, 0x65, 0x6e, 0x64, 0x69, 0x6e, 0x67, 0x18, 0x04, 0x20, 0x01, 0x28, 0x08, 0x52, 0x0a, 0x64,
+	0x65, 0x73, 0x63, 0x65, 0x6e, 0x64, 0x69, 0x6e, 0x67, 0x12, 0x16, 0x0a, 0x06, 0x70, 0x61, 0x67,
+	0x65, 0x49, 0x44, 0x18, 0x05, 0x20, 0x01, 0x28, 0x09, 0x52, 0x06, 0x70, 0x61, 0x67, 0x65, 0x49,
+	0x44, 0x12, 0x14, 0x0a, 0x05, 0x6c, 0x69, 0x6d, 0x69, 0x74, 0x18, 0x06, 0x20, 0x01, 0x28, 0x03,
+	0x52, 0x05, 0x6c, 0x69, 0x6d, 0x69, 0x74, 0x22, 0x78, 0x0a, 0x12, 0x51, 0x75, 0x65, 0x72, 0x79,
+	0x52, 0x65, 0x63, 0x6f, 0x72, 0x64, 0x73, 0x52, 0x65, 0x73, 0x75, 0x6c, 0x74, 0x12, 0x2c, 0x0a,
+	0x07, 0x72, 0x65, 0x63, 0x6f, 0x72, 0x64, 0x73, 0x18, 0x01, 0x20, 0x03, 0x28, 0x0b, 0x32, 0x12,
+	0x2e, 0x73, 0x6f, 0x6c, 0x61, 0x72, 0x69, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x52, 0x65, 0x63, 0x6f,
+	0x72, 0x64, 0x52, 0x07, 0x72, 0x65, 0x63, 0x6f, 0x72, 0x64, 0x73, 0x12, 0x1e, 0x0a, 0x0a, 0x6e,
+	0x65, 0x78, 0x74, 0x50, 0x61, 0x67, 0x65, 0x49, 0x44, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x52,
+	0x0a, 0x6e, 0x65, 0x78, 0x74, 0x50, 0x61, 0x67, 0x65, 0x49, 0x44, 0x12, 0x14, 0x0a, 0x05, 0x74,
+	0x6f, 0x74, 0x61, 0x6c, 0x18, 0x03, 0x20, 0x01, 0x28, 0x03, 0x52, 0x05, 0x74, 0x6f, 0x74, 0x61,
+	0x6c, 0x32, 0x96, 0x03, 0x0a, 0x07, 0x53, 0x65, 0x72, 0x76, 0x69, 0x63, 0x65, 0x12, 0x34, 0x0a,
+	0x09, 0x43, 0x72, 0x65, 0x61, 0x74, 0x65, 0x4c, 0x6f, 0x67, 0x12, 0x0f, 0x2e, 0x73, 0x6f, 0x6c,
+	0x61, 0x72, 0x69, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x4c, 0x6f, 0x67, 0x1a, 0x16, 0x2e, 0x67, 0x6f,
+	0x6f, 0x67, 0x6c, 0x65, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x62, 0x75, 0x66, 0x2e, 0x45, 0x6d,
+	0x70, 0x74, 0x79, 0x12, 0x2d, 0x0a, 0x09, 0x55, 0x70, 0x64, 0x61, 0x74, 0x65, 0x4c, 0x6f, 0x67,
+	0x12, 0x0f, 0x2e, 0x73, 0x6f, 0x6c, 0x61, 0x72, 0x69, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x4c, 0x6f,
+	0x67, 0x1a, 0x0f, 0x2e, 0x73, 0x6f, 0x6c, 0x61, 0x72, 0x69, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x4c,
+	0x6f, 0x67, 0x12, 0x46, 0x0a, 0x09, 0x51, 0x75, 0x65, 0x72, 0x79, 0x4c, 0x6f, 0x67, 0x73, 0x12,
+	0x1c, 0x2e, 0x73, 0x6f, 0x6c, 0x61, 0x72, 0x69, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x51, 0x75, 0x65,
+	0x72, 0x79, 0x4c, 0x6f, 0x67, 0x73, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x1b, 0x2e,
+	0x73, 0x6f, 0x6c, 0x61, 0x72, 0x69, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x51, 0x75, 0x65, 0x72, 0x79,
+	0x4c, 0x6f, 0x67, 0x73, 0x52, 0x65, 0x73, 0x75, 0x6c, 0x74, 0x12, 0x49, 0x0a, 0x0a, 0x44, 0x65,
+	0x6c, 0x65, 0x74, 0x65, 0x4c, 0x6f, 0x67, 0x73, 0x12, 0x1d, 0x2e, 0x73, 0x6f, 0x6c, 0x61, 0x72,
+	0x69, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x44, 0x65, 0x6c, 0x65, 0x74, 0x65, 0x4c, 0x6f, 0x67, 0x73,
+	0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x1c, 0x2e, 0x73, 0x6f, 0x6c, 0x61, 0x72, 0x69,
+	0x73, 0x2e, 0x76, 0x31, 0x2e, 0x44, 0x65, 0x6c, 0x65, 0x74, 0x65, 0x4c, 0x6f, 0x67, 0x73, 0x52,
+	0x65, 0x73, 0x75, 0x6c, 0x74, 0x12, 0x42, 0x0a, 0x0d, 0x41, 0x70, 0x70, 0x65, 0x6e, 0x64, 0x52,
+	0x65, 0x63, 0x6f, 0x72, 0x64, 0x73, 0x12, 0x20, 0x2e, 0x73, 0x6f, 0x6c, 0x61, 0x72, 0x69, 0x73,
+	0x2e, 0x76, 0x31, 0x2e, 0x41, 0x70, 0x70, 0x65, 0x6e, 0x64, 0x52, 0x65, 0x63, 0x6f, 0x72, 0x64,
+	0x73, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x0f, 0x2e, 0x73, 0x6f, 0x6c, 0x61, 0x72,
+	0x69, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x4c, 0x6f, 0x67, 0x12, 0x4f, 0x0a, 0x0c, 0x51, 0x75, 0x65,
+	0x72, 0x79, 0x52, 0x65, 0x63, 0x6f, 0x72, 0x64, 0x73, 0x12, 0x1f, 0x2e, 0x73, 0x6f, 0x6c, 0x61,
+	0x72, 0x69, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x51, 0x75, 0x65, 0x72, 0x79, 0x52, 0x65, 0x63, 0x6f,
+	0x72, 0x64, 0x73, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x1e, 0x2e, 0x73, 0x6f, 0x6c,
+	0x61, 0x72, 0x69, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x51, 0x75, 0x65, 0x72, 0x79, 0x52, 0x65, 0x63,
+	0x6f, 0x72, 0x64, 0x73, 0x52, 0x65, 0x73, 0x75, 0x6c, 0x74, 0x42, 0x16, 0x5a, 0x14, 0x2e, 0x2f,
+	0x73, 0x6f, 0x6c, 0x61, 0x72, 0x69, 0x73, 0x2f, 0x76, 0x31, 0x3b, 0x73, 0x6f, 0x6c, 0x61, 0x72,
+	0x69, 0x73, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
 }
 
-var file_solaris_proto_goTypes = []interface{}{}
+var (
+	file_solaris_proto_rawDescOnce sync.Once
+	file_solaris_proto_rawDescData = file_solaris_proto_rawDesc
+)
+
+func file_solaris_proto_rawDescGZIP() []byte {
+	file_solaris_proto_rawDescOnce.Do(func() {
+		file_solaris_proto_rawDescData = protoimpl.X.CompressGZIP(file_solaris_proto_rawDescData)
+	})
+	return file_solaris_proto_rawDescData
+}
+
+var file_solaris_proto_msgTypes = make([]protoimpl.MessageInfo, 10)
+var file_solaris_proto_goTypes = []interface{}{
+	(*Record)(nil),                // 0: solaris.v1.Record
+	(*Log)(nil),                   // 1: solaris.v1.Log
+	(*AppendRecordsRequest)(nil),  // 2: solaris.v1.AppendRecordsRequest
+	(*QueryLogsRequest)(nil),      // 3: solaris.v1.QueryLogsRequest
+	(*QueryLogsResult)(nil),       // 4: solaris.v1.QueryLogsResult
+	(*DeleteLogsRequest)(nil),     // 5: solaris.v1.DeleteLogsRequest
+	(*DeleteLogsResult)(nil),      // 6: solaris.v1.DeleteLogsResult
+	(*QueryRecordsRequest)(nil),   // 7: solaris.v1.QueryRecordsRequest
+	(*QueryRecordsResult)(nil),    // 8: solaris.v1.QueryRecordsResult
+	nil,                           // 9: solaris.v1.Log.TagsEntry
+	(*timestamppb.Timestamp)(nil), // 10: google.protobuf.Timestamp
+	(*emptypb.Empty)(nil),         // 11: google.protobuf.Empty
+}
 var file_solaris_proto_depIdxs = []int32{
-	0, // [0:0] is the sub-list for method output_type
-	0, // [0:0] is the sub-list for method input_type
-	0, // [0:0] is the sub-list for extension type_name
-	0, // [0:0] is the sub-list for extension extendee
-	0, // [0:0] is the sub-list for field type_name
+	10, // 0: solaris.v1.Record.createdAt:type_name -> google.protobuf.Timestamp
+	9,  // 1: solaris.v1.Log.tags:type_name -> solaris.v1.Log.TagsEntry
+	10, // 2: solaris.v1.Log.createdAt:type_name -> google.protobuf.Timestamp
+	10, // 3: solaris.v1.Log.updatedAt:type_name -> google.protobuf.Timestamp
+	0,  // 4: solaris.v1.AppendRecordsRequest.records:type_name -> solaris.v1.Record
+	1,  // 5: solaris.v1.QueryLogsResult.logs:type_name -> solaris.v1.Log
+	0,  // 6: solaris.v1.QueryRecordsResult.records:type_name -> solaris.v1.Record
+	1,  // 7: solaris.v1.Service.CreateLog:input_type -> solaris.v1.Log
+	1,  // 8: solaris.v1.Service.UpdateLog:input_type -> solaris.v1.Log
+	3,  // 9: solaris.v1.Service.QueryLogs:input_type -> solaris.v1.QueryLogsRequest
+	5,  // 10: solaris.v1.Service.DeleteLogs:input_type -> solaris.v1.DeleteLogsRequest
+	2,  // 11: solaris.v1.Service.AppendRecords:input_type -> solaris.v1.AppendRecordsRequest
+	7,  // 12: solaris.v1.Service.QueryRecords:input_type -> solaris.v1.QueryRecordsRequest
+	11, // 13: solaris.v1.Service.CreateLog:output_type -> google.protobuf.Empty
+	1,  // 14: solaris.v1.Service.UpdateLog:output_type -> solaris.v1.Log
+	4,  // 15: solaris.v1.Service.QueryLogs:output_type -> solaris.v1.QueryLogsResult
+	6,  // 16: solaris.v1.Service.DeleteLogs:output_type -> solaris.v1.DeleteLogsResult
+	1,  // 17: solaris.v1.Service.AppendRecords:output_type -> solaris.v1.Log
+	8,  // 18: solaris.v1.Service.QueryRecords:output_type -> solaris.v1.QueryRecordsResult
+	13, // [13:19] is the sub-list for method output_type
+	7,  // [7:13] is the sub-list for method input_type
+	7,  // [7:7] is the sub-list for extension type_name
+	7,  // [7:7] is the sub-list for extension extendee
+	0,  // [0:7] is the sub-list for field type_name
 }
 
 func init() { file_solaris_proto_init() }
@@ -42,18 +803,130 @@ func file_solaris_proto_init() {
 	if File_solaris_proto != nil {
 		return
 	}
+	if !protoimpl.UnsafeEnabled {
+		file_solaris_proto_msgTypes[0].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*Record); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_solaris_proto_msgTypes[1].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*Log); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_solaris_proto_msgTypes[2].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*AppendRecordsRequest); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_solaris_proto_msgTypes[3].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*QueryLogsRequest); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_solaris_proto_msgTypes[4].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*QueryLogsResult); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_solaris_proto_msgTypes[5].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*DeleteLogsRequest); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_solaris_proto_msgTypes[6].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*DeleteLogsResult); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_solaris_proto_msgTypes[7].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*QueryRecordsRequest); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_solaris_proto_msgTypes[8].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*QueryRecordsResult); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+	}
+	file_solaris_proto_msgTypes[0].OneofWrappers = []interface{}{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: file_solaris_proto_rawDesc,
 			NumEnums:      0,
-			NumMessages:   0,
+			NumMessages:   10,
 			NumExtensions: 0,
-			NumServices:   0,
+			NumServices:   1,
 		},
 		GoTypes:           file_solaris_proto_goTypes,
 		DependencyIndexes: file_solaris_proto_depIdxs,
+		MessageInfos:      file_solaris_proto_msgTypes,
 	}.Build()
 	File_solaris_proto = out.File
 	file_solaris_proto_rawDesc = nil
