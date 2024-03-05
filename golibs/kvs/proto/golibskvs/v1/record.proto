@@ -1,0 +1,21 @@
+syntax = "proto3";
+
+import "google/protobuf/timestamp.proto";
+
+package golibskvspb.v1;
+option go_package = "golibskvspb/v1;golibskvspb";
+
+// Record describes a key-value pair stored in the storage
+message Record {
+  // key contains the key value
+  string key = 1;
+  // value is the payload
+  bytes value = 2;
+  // version is the version of the record. It will be set by the storage when
+  // the record created or updated
+  string version = 3;
+  // updatedAt contains the timestamp when the record is updated. It is set by the storage
+  google.protobuf.Timestamp updatedAt = 4;
+  // expiresAt contains the timestamp when the record will be removed by the storage authomatically
+  optional google.protobuf.Timestamp expiresAt = 5;
+}
