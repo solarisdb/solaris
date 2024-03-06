@@ -1,7 +1,6 @@
 syntax = "proto3";
 
 import "google/protobuf/timestamp.proto";
-import "google/protobuf/empty.proto";
 
 package solaris.v1;
 option go_package = "./solaris/v1;solaris";
@@ -9,7 +8,7 @@ option go_package = "./solaris/v1;solaris";
 // Service exposes the public interface for the Solaris DB
 service Service {
   // CreateLog creates then new log
-  rpc CreateLog(Log) returns (google.protobuf.Empty);
+  rpc CreateLog(Log) returns (Log);
   // UpdateLog changes the log settings (tags)
   rpc UpdateLog(Log) returns (Log);
   // QueryLogs requests list of logs by the query request ordered by the log IDs ascending order
@@ -17,7 +16,7 @@ service Service {
   // DeleteLogs removes one or more logs
   rpc DeleteLogs(DeleteLogsRequest) returns (DeleteLogsResult);
   // AppendRecords appends a bunch of records to the log
-  rpc AppendRecords(AppendRecordsRequest) returns (Log);
+  rpc AppendRecords(AppendRecordsRequest) returns (AppendRecordsResult);
   // QueryRecords read records from one or many logs, merging them together into the result set
   // sorted in ascending or descending order by the records IDs (timestamps)
   rpc QueryRecords(QueryRecordsRequest) returns (QueryRecordsResult);
@@ -29,9 +28,9 @@ message Record {
   string id = 1;
   // logID is the log identifier the record is associated with. In a bunch result the field may be empty,
   // this case the logID is same as for the previous record in the batch
-  optional string logID = 2;
+  string logID = 2;
   // createdAt the timestamp when the record was added to the DB
-  optional google.protobuf.Timestamp createdAt = 3;
+  google.protobuf.Timestamp createdAt = 3;
   // payload is the record data
   bytes payload = 4;
 }
@@ -56,6 +55,11 @@ message AppendRecordsRequest {
   string logID = 1;
   // records the list of records to be added
   repeated Record records = 2;
+}
+
+// AppendRecordsResult contains the number or records added to the log
+message AppendRecordsResult {
+  int64 added = 1;
 }
 
 // QueryLogsRequest allows to read multiple Log objects per one request

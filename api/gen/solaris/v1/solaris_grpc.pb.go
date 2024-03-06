@@ -11,7 +11,6 @@ import (
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"
-	emptypb "google.golang.org/protobuf/types/known/emptypb"
 )
 
 // This is a compile-time assertion to ensure that this generated file
@@ -33,7 +32,7 @@ const (
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type ServiceClient interface {
 	// CreateLog creates then new log
-	CreateLog(ctx context.Context, in *Log, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	CreateLog(ctx context.Context, in *Log, opts ...grpc.CallOption) (*Log, error)
 	// UpdateLog changes the log settings (tags)
 	UpdateLog(ctx context.Context, in *Log, opts ...grpc.CallOption) (*Log, error)
 	// QueryLogs requests list of logs by the query request ordered by the log IDs ascending order
@@ -41,7 +40,7 @@ type ServiceClient interface {
 	// DeleteLogs removes one or more logs
 	DeleteLogs(ctx context.Context, in *DeleteLogsRequest, opts ...grpc.CallOption) (*DeleteLogsResult, error)
 	// AppendRecords appends a bunch of records to the log
-	AppendRecords(ctx context.Context, in *AppendRecordsRequest, opts ...grpc.CallOption) (*Log, error)
+	AppendRecords(ctx context.Context, in *AppendRecordsRequest, opts ...grpc.CallOption) (*AppendRecordsResult, error)
 	// QueryRecords read records from one or many logs, merging them together into the result set
 	// sorted in ascending or descending order by the records IDs (timestamps)
 	QueryRecords(ctx context.Context, in *QueryRecordsRequest, opts ...grpc.CallOption) (*QueryRecordsResult, error)
@@ -55,8 +54,8 @@ func NewServiceClient(cc grpc.ClientConnInterface) ServiceClient {
 	return &serviceClient{cc}
 }
 
-func (c *serviceClient) CreateLog(ctx context.Context, in *Log, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	out := new(emptypb.Empty)
+func (c *serviceClient) CreateLog(ctx context.Context, in *Log, opts ...grpc.CallOption) (*Log, error) {
+	out := new(Log)
 	err := c.cc.Invoke(ctx, Service_CreateLog_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -91,8 +90,8 @@ func (c *serviceClient) DeleteLogs(ctx context.Context, in *DeleteLogsRequest, o
 	return out, nil
 }
 
-func (c *serviceClient) AppendRecords(ctx context.Context, in *AppendRecordsRequest, opts ...grpc.CallOption) (*Log, error) {
-	out := new(Log)
+func (c *serviceClient) AppendRecords(ctx context.Context, in *AppendRecordsRequest, opts ...grpc.CallOption) (*AppendRecordsResult, error) {
+	out := new(AppendRecordsResult)
 	err := c.cc.Invoke(ctx, Service_AppendRecords_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -114,7 +113,7 @@ func (c *serviceClient) QueryRecords(ctx context.Context, in *QueryRecordsReques
 // for forward compatibility
 type ServiceServer interface {
 	// CreateLog creates then new log
-	CreateLog(context.Context, *Log) (*emptypb.Empty, error)
+	CreateLog(context.Context, *Log) (*Log, error)
 	// UpdateLog changes the log settings (tags)
 	UpdateLog(context.Context, *Log) (*Log, error)
 	// QueryLogs requests list of logs by the query request ordered by the log IDs ascending order
@@ -122,7 +121,7 @@ type ServiceServer interface {
 	// DeleteLogs removes one or more logs
 	DeleteLogs(context.Context, *DeleteLogsRequest) (*DeleteLogsResult, error)
 	// AppendRecords appends a bunch of records to the log
-	AppendRecords(context.Context, *AppendRecordsRequest) (*Log, error)
+	AppendRecords(context.Context, *AppendRecordsRequest) (*AppendRecordsResult, error)
 	// QueryRecords read records from one or many logs, merging them together into the result set
 	// sorted in ascending or descending order by the records IDs (timestamps)
 	QueryRecords(context.Context, *QueryRecordsRequest) (*QueryRecordsResult, error)
@@ -133,7 +132,7 @@ type ServiceServer interface {
 type UnimplementedServiceServer struct {
 }
 
-func (UnimplementedServiceServer) CreateLog(context.Context, *Log) (*emptypb.Empty, error) {
+func (UnimplementedServiceServer) CreateLog(context.Context, *Log) (*Log, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CreateLog not implemented")
 }
 func (UnimplementedServiceServer) UpdateLog(context.Context, *Log) (*Log, error) {
@@ -145,7 +144,7 @@ func (UnimplementedServiceServer) QueryLogs(context.Context, *QueryLogsRequest) 
 func (UnimplementedServiceServer) DeleteLogs(context.Context, *DeleteLogsRequest) (*DeleteLogsResult, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteLogs not implemented")
 }
-func (UnimplementedServiceServer) AppendRecords(context.Context, *AppendRecordsRequest) (*Log, error) {
+func (UnimplementedServiceServer) AppendRecords(context.Context, *AppendRecordsRequest) (*AppendRecordsResult, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method AppendRecords not implemented")
 }
 func (UnimplementedServiceServer) QueryRecords(context.Context, *QueryRecordsRequest) (*QueryRecordsResult, error) {
