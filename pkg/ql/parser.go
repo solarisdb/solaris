@@ -89,17 +89,6 @@ const (
 	StringParamID = "__string__"
 	NumberParamID = "__number__"
 	ArrayParamID  = "__array__"
-
-	// PfLValue the parameter can be a lvalue in the condition
-	PfLValue = 1 << 0
-	// PfRValue the parameter can be a rvalue in the condition
-	PfRValue = 1 << 1
-	// PfNop the parameter cannot have any operation
-	PfNop = 1 << 2
-	// PfComparable the parameter can be compared: <, >, !=, =, >=, <=
-	PfComparable = 1 << 3
-	// PfInLike the IN or LIKE operations are allowed for the param
-	PfInLike = 1 << 4
 )
 
 // id returns the param id by its type:
