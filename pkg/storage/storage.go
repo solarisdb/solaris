@@ -16,13 +16,13 @@ type (
 		// UpdateLog update the Log object information. The Log is matched by the log ID
 		UpdateLog(ctx context.Context, log *solaris.Log) (*solaris.Log, error)
 		// QueryLogs returns the list of Log objects matched to the query request
-		QueryLogs(ctx context.Context, qr QueryLogsReqeust) (*solaris.QueryLogsResult, error)
+		QueryLogs(ctx context.Context, qr QueryLogsRequest) (*solaris.QueryLogsResult, error)
 		// DeleteLogs allows to either mark or delete logs permanently
 		DeleteLogs(ctx context.Context, request DeleteLogsRequest) (*solaris.CountResult, error)
 	}
 
-	// QueryLogsReqeust is used for selecting list of known logs
-	QueryLogsReqeust struct {
+	// QueryLogsRequest is used for selecting list of known logs
+	QueryLogsRequest struct {
 		Condition string
 		// IDs is the list of Log IDs should be selected. If the value is not empty, the Condition field is disregarded
 		IDs []string
@@ -35,7 +35,7 @@ type (
 	// DeleteLogsRequest specifies the DeleteLogs parameters
 	DeleteLogsRequest struct {
 		Condition string
-		// IDs is the list of Log IDs should be selected. If the value is not empty, the Condition field is disregarded
+		// IDs is the list of Log IDs should be deleted.
 		IDs []string
 		// MarkOnly allows not to delete the records physically, but mark it for deletion
 		MarkOnly bool

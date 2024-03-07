@@ -50,7 +50,7 @@ func (s *Service) UpdateLog(ctx context.Context, log *solaris.Log) (*solaris.Log
 }
 
 func (s *Service) QueryLogs(ctx context.Context, request *solaris.QueryLogsRequest) (*solaris.QueryLogsResult, error) {
-	res, err := s.LogsStorage.QueryLogs(ctx, storage.QueryLogsReqeust{Condition: request.Condition, Page: request.PageID, Limit: request.Limit})
+	res, err := s.LogsStorage.QueryLogs(ctx, storage.QueryLogsRequest{Condition: request.Condition, Page: request.PageID, Limit: request.Limit})
 	if err != nil {
 		s.logger.Warnf("could not query=%v: %v", request, err)
 	}
