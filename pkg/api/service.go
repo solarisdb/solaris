@@ -84,7 +84,7 @@ func (s *Service) QueryRecords(ctx context.Context, request *solaris.QueryRecord
 	logIDs := request.LogIDs
 	if len(logIDs) == 0 {
 		// requesting maxLogsToMerge+1 to be sure that if we have more than the maximum, will interrupt the procedure
-		qr, err := s.LogsStorage.QueryLogs(ctx, storage.QueryLogsReqeust{Condition: request.LogsCondition, Limit: int64(maxLogsToMerge + 1)})
+		qr, err := s.LogsStorage.QueryLogs(ctx, storage.QueryLogsRequest{Condition: request.LogsCondition, Limit: int64(maxLogsToMerge + 1)})
 		if err != nil {
 			return nil, errors.GRPCWrap(err)
 		}
