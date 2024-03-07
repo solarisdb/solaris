@@ -117,6 +117,7 @@ func (s *Service) QueryRecords(ctx context.Context, request *solaris.QueryRecord
 	baseQuery := storage.QueryRecordsRequest{Condition: request.Condition,
 		Descending: request.Descending, StartID: request.StartRecordID, Limit: request.Limit}
 	mx := newMixer(ctx, cancel, s.LogStorage, baseQuery, logIDs)
+	defer mx.Close()
 
 	lim := request.Limit
 
