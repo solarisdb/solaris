@@ -3,6 +3,7 @@ module github.com/solarisdb/solaris
 go 1.22.0
 
 require (
+	github.com/alecthomas/participle/v2 v2.1.1
 	github.com/alicebob/miniredis/v2 v2.31.1
 	github.com/davecgh/go-spew v1.1.1
 	github.com/edsrzf/mmap-go v1.1.0
