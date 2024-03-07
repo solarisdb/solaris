@@ -87,8 +87,9 @@ func (mr *Mixer[E]) Next() (E, bool) {
 }
 
 func (mr *Mixer[E]) Close() error {
-	err1 := mr.src1.it.Close()
-	err2 := mr.src2.it.Close()
+	err1 := mr.src1.close()
+	err2 := mr.src2.close()
+	mr.sf = nil
 	if err1 == nil {
 		return err2
 	}
@@ -126,6 +127,16 @@ func (mr *Mixer[E]) selectState() {
 
 func (mr *Mixer[E]) testFunc() bool {
 	return mr.sf(mr.src1.e, mr.src2.e)
+}
+
+func (sd *srcDesc[E]) close() error {
+	var err error
+	if sd.it != nil {
+		err = sd.it.Close()
+		sd.it = nil
+		sd.e = *new(E)
+	}
+	return err
 }
 
 func (sd *srcDesc[E]) reset() error {

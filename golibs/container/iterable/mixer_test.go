@@ -51,6 +51,18 @@ func TestMixer_Reset(t *testing.T) {
 	assert.Equal(t, 5, v)
 }
 
+func TestMixer_Close(t *testing.T) {
+	it1 := WrapIntSlice([]int{5, 6})
+	it2 := WrapIntSlice([]int{3, 4})
+	mx := &Mixer[int]{}
+	mx.Init(func(a, b int) bool { return a <= b }, it1, it2)
+	assert.Equal(t, it1, mx.src1.it)
+	assert.Equal(t, it2, mx.src2.it)
+	assert.Nil(t, mx.Close())
+	assert.Nil(t, mx.src1.it)
+	assert.Nil(t, mx.src2.it)
+}
+
 func testSimpleMix(t *testing.T, it1, it2 Iterator[int], res []int) {
 	var m Mixer[int]
 	m.Init(func(a, b int) bool { return a <= b }, it1, it2)
