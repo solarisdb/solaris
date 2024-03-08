@@ -25,6 +25,7 @@ const (
 	Service_DeleteLogs_FullMethodName    = "/solaris.v1.Service/DeleteLogs"
 	Service_AppendRecords_FullMethodName = "/solaris.v1.Service/AppendRecords"
 	Service_QueryRecords_FullMethodName  = "/solaris.v1.Service/QueryRecords"
+	Service_CountRecords_FullMethodName  = "/solaris.v1.Service/CountRecords"
 )
 
 // ServiceClient is the client API for Service service.
@@ -38,12 +39,14 @@ type ServiceClient interface {
 	// QueryLogs requests list of logs by the query request ordered by the log IDs ascending order
 	QueryLogs(ctx context.Context, in *QueryLogsRequest, opts ...grpc.CallOption) (*QueryLogsResult, error)
 	// DeleteLogs removes one or more logs
-	DeleteLogs(ctx context.Context, in *DeleteLogsRequest, opts ...grpc.CallOption) (*DeleteLogsResult, error)
+	DeleteLogs(ctx context.Context, in *DeleteLogsRequest, opts ...grpc.CallOption) (*CountResult, error)
 	// AppendRecords appends a bunch of records to the log
 	AppendRecords(ctx context.Context, in *AppendRecordsRequest, opts ...grpc.CallOption) (*AppendRecordsResult, error)
 	// QueryRecords read records from one or many logs, merging them together into the result set
 	// sorted in ascending or descending order by the records IDs (timestamps)
 	QueryRecords(ctx context.Context, in *QueryRecordsRequest, opts ...grpc.CallOption) (*QueryRecordsResult, error)
+	// CountRecords allows to count the number of records that matches QueryRecordsRequest
+	CountRecords(ctx context.Context, in *QueryRecordsRequest, opts ...grpc.CallOption) (*CountResult, error)
 }
 
 type serviceClient struct {
@@ -81,8 +84,8 @@ func (c *serviceClient) QueryLogs(ctx context.Context, in *QueryLogsRequest, opt
 	return out, nil
 }
 
-func (c *serviceClient) DeleteLogs(ctx context.Context, in *DeleteLogsRequest, opts ...grpc.CallOption) (*DeleteLogsResult, error) {
-	out := new(DeleteLogsResult)
+func (c *serviceClient) DeleteLogs(ctx context.Context, in *DeleteLogsRequest, opts ...grpc.CallOption) (*CountResult, error) {
+	out := new(CountResult)
 	err := c.cc.Invoke(ctx, Service_DeleteLogs_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -108,6 +111,15 @@ func (c *serviceClient) QueryRecords(ctx context.Context, in *QueryRecordsReques
 	return out, nil
 }
 
+func (c *serviceClient) CountRecords(ctx context.Context, in *QueryRecordsRequest, opts ...grpc.CallOption) (*CountResult, error) {
+	out := new(CountResult)
+	err := c.cc.Invoke(ctx, Service_CountRecords_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // ServiceServer is the server API for Service service.
 // All implementations must embed UnimplementedServiceServer
 // for forward compatibility
@@ -119,12 +131,14 @@ type ServiceServer interface {
 	// QueryLogs requests list of logs by the query request ordered by the log IDs ascending order
 	QueryLogs(context.Context, *QueryLogsRequest) (*QueryLogsResult, error)
 	// DeleteLogs removes one or more logs
-	DeleteLogs(context.Context, *DeleteLogsRequest) (*DeleteLogsResult, error)
+	DeleteLogs(context.Context, *DeleteLogsRequest) (*CountResult, error)
 	// AppendRecords appends a bunch of records to the log
 	AppendRecords(context.Context, *AppendRecordsRequest) (*AppendRecordsResult, error)
 	// QueryRecords read records from one or many logs, merging them together into the result set
 	// sorted in ascending or descending order by the records IDs (timestamps)
 	QueryRecords(context.Context, *QueryRecordsRequest) (*QueryRecordsResult, error)
+	// CountRecords allows to count the number of records that matches QueryRecordsRequest
+	CountRecords(context.Context, *QueryRecordsRequest) (*CountResult, error)
 	mustEmbedUnimplementedServiceServer()
 }
 
@@ -141,7 +155,7 @@ func (UnimplementedServiceServer) UpdateLog(context.Context, *Log) (*Log, error)
 func (UnimplementedServiceServer) QueryLogs(context.Context, *QueryLogsRequest) (*QueryLogsResult, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method QueryLogs not implemented")
 }
-func (UnimplementedServiceServer) DeleteLogs(context.Context, *DeleteLogsRequest) (*DeleteLogsResult, error) {
+func (UnimplementedServiceServer) DeleteLogs(context.Context, *DeleteLogsRequest) (*CountResult, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteLogs not implemented")
 }
 func (UnimplementedServiceServer) AppendRecords(context.Context, *AppendRecordsRequest) (*AppendRecordsResult, error) {
@@ -149,6 +163,9 @@ func (UnimplementedServiceServer) AppendRecords(context.Context, *AppendRecordsR
 }
 func (UnimplementedServiceServer) QueryRecords(context.Context, *QueryRecordsRequest) (*QueryRecordsResult, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method QueryRecords not implemented")
+}
+func (UnimplementedServiceServer) CountRecords(context.Context, *QueryRecordsRequest) (*CountResult, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CountRecords not implemented")
 }
 func (UnimplementedServiceServer) mustEmbedUnimplementedServiceServer() {}
 
@@ -271,6 +288,24 @@ func _Service_QueryRecords_Handler(srv interface{}, ctx context.Context, dec fun
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Service_CountRecords_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(QueryRecordsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ServiceServer).CountRecords(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Service_CountRecords_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ServiceServer).CountRecords(ctx, req.(*QueryRecordsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // Service_ServiceDesc is the grpc.ServiceDesc for Service service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -301,6 +336,10 @@ var Service_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "QueryRecords",
 			Handler:    _Service_QueryRecords_Handler,
+		},
+		{
+			MethodName: "CountRecords",
+			Handler:    _Service_CountRecords_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

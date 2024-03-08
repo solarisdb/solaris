@@ -14,18 +14,20 @@ service Service {
   // QueryLogs requests list of logs by the query request ordered by the log IDs ascending order
   rpc QueryLogs(QueryLogsRequest) returns (QueryLogsResult);
   // DeleteLogs removes one or more logs
-  rpc DeleteLogs(DeleteLogsRequest) returns (DeleteLogsResult);
+  rpc DeleteLogs(DeleteLogsRequest) returns (CountResult);
   // AppendRecords appends a bunch of records to the log
   rpc AppendRecords(AppendRecordsRequest) returns (AppendRecordsResult);
   // QueryRecords read records from one or many logs, merging them together into the result set
   // sorted in ascending or descending order by the records IDs (timestamps)
   rpc QueryRecords(QueryRecordsRequest) returns (QueryRecordsResult);
+  // CountRecords allows to count the number of records that matches QueryRecordsRequest
+  rpc CountRecords(QueryRecordsRequest) returns (CountResult);
 }
 
 // Record represents one record of a log
 message Record {
   // id is the record unique identifier. A record ID is ULID, so it is soreted and globaly unique.
-  string id = 1;
+  string ID = 1;
   // logID is the log identifier the record is associated with. In a bunch result the field may be empty,
   // this case the logID is same as for the previous record in the batch
   string logID = 2;
@@ -38,7 +40,7 @@ message Record {
 // Log describes a log in the database. Logs are distinguished by their IDs only
 message Log {
   // id of the log. It is ULID, so every log has a globaly unique ID
-  string id = 1;
+  string ID = 1;
   // tags is a map of tags and their values associated with the log
   map<string, string> tags = 2;
   // createdAt is the timestamp when the log was created
@@ -67,9 +69,9 @@ message QueryLogsRequest {
   // condition describes the log filter condition
   string condition = 1;
   // pageID is provided for paginated results
-  string pageID = 4;
+  string pageID = 2;
   // limit contains tha maximum number of Log objects in the result
-  int64 limit = 5;
+  int64 limit = 3;
 }
 
 // QueryLogsResult describes the response for QueryLogsRequest
@@ -78,7 +80,7 @@ message QueryLogsResult {
   repeated Log logs = 1;
   // nextPageID contains the pageID for reading next portion of the records if any
   string nextPageID = 2;
-  // total number of records that match the request
+  // total is the number of records matched to the result
   int64 total = 3;
 }
 
@@ -87,9 +89,9 @@ message DeleteLogsRequest {
   string condition = 1;
 }
 
-// DeleteLogsResult returns the number of Logs deleted
-message DeleteLogsResult {
-  // total contains the number of Logs deleted
+// CountResult returns a counted number of an operation
+message CountResult {
+  // total contains the requested number
   int64 total = 1;
 }
 
@@ -101,10 +103,14 @@ message QueryRecordsRequest {
   string condition = 2;
   // logIDs allows to specify the list of logs explicitly. If it is provided, then the logsCondition will be ignored.
   repeated string logIDs = 3;
-  // descending specifies that the result should be sorted in the descending order
+  // descending specifies that the result should be sorted in the record ID descending order.
   bool descending = 4;
-  // pageID provides the page ID if pagination is required
-  string pageID = 5;
+  // startRecordID defines the first record ID the result set may start from. In case of ascending order, the
+  // result will contain records with IDs are equal or GREATER the startRecordID. If the descending order
+  // is true, the result will contain records with IDs are equal or LOWER the startRecordID.
+  // If the startRecordID is empty the result will start from either first or latest record in the log, depending
+  // on the descending flag value.
+  string startRecordID = 5;
   // limit contains the number of records to be returned
   int64 limit = 6;
 }
@@ -115,6 +121,4 @@ message QueryRecordsResult {
   repeated Record records = 1;
   // nextPageID contains the next page ID for retrieving the next portion of records
   string nextPageID = 2;
-  // total is the number of records matched to the result
-  int64 total = 3;
 }
