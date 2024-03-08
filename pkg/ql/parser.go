@@ -91,13 +91,13 @@ const (
 	ArrayParamID  = "__array__"
 )
 
-// id returns the param id by its type:
+// ID returns the param id by its type:
 // - string: StringParamID
 // - number: NumberParamID
 // - function: the function name
 // - identifier: the identifier name
 // - array: ArrayParamID
-func (p Param) id() string {
+func (p Param) ID() string {
 	if p.Const != nil {
 		if p.Const.String != "" {
 			return StringParamID
@@ -114,7 +114,7 @@ func (p Param) id() string {
 }
 
 // Name returns "value" of the constants (strings, numbers and the arrays) and names for the functions and identifiers
-func (p Param) Name(full bool) string {
+func (p Param) Name() string {
 	if p.Const != nil {
 		return p.Const.Value()
 	}
@@ -131,10 +131,6 @@ func (p Param) Name(full bool) string {
 		if i > 0 {
 			sb.WriteString(", ")
 		}
-		if !full && i > 3 && len(p.Array) > 10 {
-			sb.WriteString(fmt.Sprintf("... and %d more", len(p.Array)-4))
-			break
-		}
 		sb.WriteString(c.Value())
 	}
 	sb.WriteString("]")
@@ -144,7 +140,7 @@ func (p Param) Name(full bool) string {
 // Value returns string value of the constant
 func (c Const) Value() string {
 	if c.String != "" {
-		return fmt.Sprintf("%q", c.String)
+		return c.String
 	}
 	return fmt.Sprintf("%f", c.Number)
 }
