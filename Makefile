@@ -11,7 +11,7 @@ VERSION?=$(shell curl -s https://raw.githubusercontent.com/acquirecloud/appversi
 REV=$(shell git rev-parse HEAD)
 NOW=$(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
 
-TEST_FLAGS ?= -race
+TEST_FLAGS ?= # -race
 LDFLAGS="-X '$(MODULE)/pkg/version.Version=$(VERSION)' \
 		 -X '$(MODULE)/pkg/version.GitCommit=$(REV)' \
 		 -X '$(MODULE)/pkg/version.BuildDate=$(NOW)' \

@@ -25,35 +25,35 @@ func TestParseParam(t *testing.T) {
 
 	cond := expr.Or[0].And[0].Cond
 	assert.Equal(t, float32(1234.0), cond.FirstParam.Const.Number)
-	assert.Equal(t, NumberParamID, cond.FirstParam.id())
+	assert.Equal(t, NumberParamID, cond.FirstParam.ID())
 
 	expr, err = Parse("'1234'")
 	assert.Nil(t, err)
 
 	cond = expr.Or[0].And[0].Cond
 	assert.Equal(t, "1234", cond.FirstParam.Const.String)
-	assert.Equal(t, StringParamID, cond.FirstParam.id())
+	assert.Equal(t, StringParamID, cond.FirstParam.ID())
 
 	expr, err = Parse("lala")
 	assert.Nil(t, err)
 
 	cond = expr.Or[0].And[0].Cond
 	assert.Equal(t, "lala", cond.FirstParam.Identifier)
-	assert.Equal(t, "lala", cond.FirstParam.id())
+	assert.Equal(t, "lala", cond.FirstParam.ID())
 
 	expr, err = Parse("lala ( )")
 	assert.Nil(t, err)
 
 	cond = expr.Or[0].And[0].Cond
 	assert.Equal(t, Function{Name: "lala"}, *cond.FirstParam.Function)
-	assert.Equal(t, "lala", cond.FirstParam.id())
+	assert.Equal(t, "lala", cond.FirstParam.ID())
 
 	expr, err = Parse("lala ( 1234)")
 	assert.Nil(t, err)
 
 	cond = expr.Or[0].And[0].Cond
 	assert.Equal(t, Function{Name: "lala", Params: []*Param{{Const: &Const{Number: float32(1234)}}}}, *cond.FirstParam.Function)
-	assert.Equal(t, "lala", cond.FirstParam.id())
+	assert.Equal(t, "lala", cond.FirstParam.ID())
 
 	_, err = Parse("lala ( 1234,hhh)")
 	assert.Nil(t, err)
