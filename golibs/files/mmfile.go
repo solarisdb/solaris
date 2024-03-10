@@ -41,52 +41,72 @@ var _ bytes.Buffer = (*MMFile)(nil)
 
 const BlockSize = 4096
 
-// NewMMFile creates new or open existing and maps a region with the size into map.
-// The size region must be multiplied on BlockSize. If the file size doesn't exist,
-// or its initial size is less than the mapped size provided the file physical size will be extended to
-// the size. If the size is less than 0, than the mapping will try to be done to the actual file size.
-func NewMMFile(fname string, size int64) (*MMFile, error) {
-	if size < 0 {
-		fi, err := os.Stat(fname)
+// NewMMFile creates new or open an existing file, and it maps a region with at least the minSize into map.
+// If minSize is positive, then minSize must be multiplied on BlockSize.
+// If the file doesn't exist, or its initial size is less than the minSize, the file physical size will be extended to
+// the minSize.
+// if the existing file size is greater than minSize provided, the mapped region will be for the actual file size.
+func NewMMFile(fname string, minSize int64) (*MMFile, error) {
+	var err error
+	var fi os.FileInfo
+	fi, err = os.Stat(fname)
+	created := false
+	if minSize < 0 {
 		if err != nil {
-			return nil, fmt.Errorf("could not read info for the file %s and the mapped size=%d", fname, size)
+			return nil, fmt.Errorf("could not read info for the file %s and the mapped size=%d", fname, minSize)
 		}
-		size = fi.Size()
+		minSize = fi.Size()
+	} else if err != nil {
+		if !errors.Is(err, os.ErrNotExist) {
+			return nil, err
+		}
+		created = true
 	}
 
-	if err := checkSize(size); err != nil {
+	if err := checkSize(minSize); err != nil {
 		return nil, err
 	}
 
-	f, err := os.OpenFile(fname, os.O_RDWR|os.O_CREATE, 0666)
+	var f *os.File
+	f, err = os.OpenFile(fname, os.O_RDWR|os.O_CREATE, 0666)
 	if err != nil {
 		return nil, fmt.Errorf("could not open file %s: %w", fname, err)
 	}
-
-	mf, err := mmap.MapRegion(f, int(size), mmap.RDWR, 0, 0)
-	if err != nil {
+	defer func() {
+		if err == nil {
+			return
+		}
 		f.Close()
-		return nil, fmt.Errorf("could not map file %s to the memory: %w", fname, err)
-	}
+		if created {
+			_ = os.Remove(fname)
+		}
+	}()
 
-	fi, err := f.Stat()
+	fi, err = f.Stat()
 	if err != nil {
-		f.Close()
 		return nil, fmt.Errorf("could not read file %s info after mapping: %w", fname, err)
 	}
 
-	if fi.Size() < size {
-		// Extend the file for correct mappin on the macos
-		if err = f.Truncate(size); err != nil {
-			return nil, fmt.Errorf("could not extend file %s size to %d: %w", fname, size, err)
+	if fi.Size() < minSize {
+		// Extend the file for correct mapping on the MacOS
+		if err = f.Truncate(minSize); err != nil {
+			return nil, fmt.Errorf("could not extend file %s size to %d: %w", fname, minSize, err)
 		}
+	} else {
+		minSize = fi.Size()
+	}
+
+	var mf mmap.MMap
+	mf, err = mmap.MapRegion(f, int(minSize), mmap.RDWR, 0, 0)
+	if err != nil {
+		return nil, fmt.Errorf("could not map file %s to the memory: %w", fname, err)
 	}
 
 	mmf := new(MMFile)
 	mmf.fn = fname
 	mmf.f = f
 	mmf.mf = mf
-	mmf.size = size
+	mmf.size = minSize
 
 	return mmf, nil
 }
@@ -110,7 +130,10 @@ func (mmf *MMFile) Size() int64 {
 
 // Grow allows to increase the mapped region to the newSize.
 func (mmf *MMFile) Grow(newSize int64) (err error) {
-	if mmf.size >= newSize {
+	if mmf.size == newSize {
+		return nil
+	}
+	if mmf.size > newSize {
 		return fmt.Errorf("expecting new size %d to be more the existing one=%d: %w", newSize, mmf.size, errors.ErrInvalid)
 	}
 
