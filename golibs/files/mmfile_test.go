@@ -63,6 +63,15 @@ func TestOpenCloseMMFile(t *testing.T) {
 	assert.Equal(t, buf[:2], res[1:3])
 }
 
+func TestCreateNotExistingMMFile(t *testing.T) {
+	dir, err := os.MkdirTemp("", "TestCreateNotExistingMMFile")
+	assert.Nil(t, err)
+	defer os.RemoveAll(dir) // clean up
+
+	_, err = NewMMFile(path.Join(dir, "testFile"), -1)
+	assert.NotNil(t, err)
+}
+
 func TestGrowMMFile(t *testing.T) {
 	dir, err := os.MkdirTemp("", "TestGrowMMFile")
 	assert.Nil(t, err)
