@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"github.com/oklog/ulid/v2"
 	"github.com/solarisdb/solaris/api/gen/solaris/v1"
+	"github.com/solarisdb/solaris/golibs/chans"
 	"github.com/solarisdb/solaris/golibs/container/iterable"
 	"github.com/solarisdb/solaris/golibs/errors"
 	"github.com/solarisdb/solaris/golibs/files"
@@ -26,19 +27,24 @@ import (
 	"github.com/solarisdb/solaris/golibs/ulidutils"
 	"sort"
 	"sync"
+	"sync/atomic"
 )
 
 type (
 	// Chunk allows to write data into a file.
 	Chunk struct {
+		id   string
 		fn   string
 		mmf  *files.MMFile
 		lock sync.RWMutex
 		// freeOffset points to the first available byte for write
-		freeOffset int
+		freeOffset int32
 		// total contains number of records
-		total  int
+		total  int32
 		logger logging.Logger
+
+		requested   int32
+		neverOpened chan struct{}
 	}
 
 	// ChunkReader is a helper structure which allows to read records from a chunk. The ChunkReader
@@ -91,6 +97,8 @@ var cfg = struct {
 	maxGrowIncreaseSize: cMaxGrowIncreaseSize,
 }
 
+var errCorrupted = fmt.Errorf("file chunk corrupted")
+
 func (mb metaBuf) get(idx int) metaRec {
 	off := len(mb) - (idx+1)*cMetaRecordSize
 	var mr metaRec
@@ -118,7 +126,18 @@ func (mb metaBuf) put(idx int, mr metaRec) {
 
 // NewChunk creates new Chunk
 func NewChunk(fileName, id string) *Chunk {
-	return &Chunk{fn: fileName, logger: logging.NewLogger(fmt.Sprintf("chunk.%s", id))}
+	return &Chunk{
+		id:          id,
+		fn:          fileName,
+		logger:      logging.NewLogger(fmt.Sprintf("chunkfs.Chunk.%s", id)),
+		neverOpened: make(chan struct{}),
+	}
+}
+
+// String implements fmt.Stringer
+func (c *Chunk) String() string {
+	return fmt.Sprintf("Chunk{id:%s, total:%d, freeOffset:%d, requested: %d}",
+		c.id, atomic.LoadInt32(&c.total), atomic.LoadInt32(&c.freeOffset), atomic.LoadInt32(&c.requested))
 }
 
 // Open allows to map the chunk file context to the memory and start working with the chunk
@@ -140,6 +159,9 @@ func (c *Chunk) Open(fullCheck bool) error {
 		c.close()
 	} else {
 		c.logger.Infof("opened size=%d, total=%d, freeOffset=%d", c.mmf.Size(), c.total, c.freeOffset)
+		if chans.IsOpened(c.neverOpened) {
+			close(c.neverOpened)
+		}
 	}
 	return err
 }
@@ -156,45 +178,45 @@ func (c *Chunk) init(fullCheck bool) error {
 		// total count
 		binary.BigEndian.PutUint32(hdr[vLen:vLen+4], uint32(0))
 	}
-	c.total = int(binary.BigEndian.Uint32(hdr[vLen : vLen+4]))
+	c.total = int32(binary.BigEndian.Uint32(hdr[vLen : vLen+4]))
 	if c.total < 0 {
-		return fmt.Errorf("the chunk is corrupted, wrong total=%d: %w", c.total, errors.ErrInvalid)
+		return fmt.Errorf("the chunk is corrupted, wrong total=%d: %w", c.total, errCorrupted)
 	}
 	c.freeOffset = cHeaderSize
 	if c.total > 0 {
-		mb, err := c.getMetaBuf(c.total-1, 1)
+		mb, err := c.getMetaBuf(int(c.total)-1, 1)
 		if err != nil {
 			return err
 		}
 		mr := mb.get(0)
-		c.freeOffset = int(mr.offset + mr.size)
+		c.freeOffset = int32(mr.offset + mr.size)
 	}
 	if c.freeOffset < cHeaderSize || int64(c.freeOffset) > c.mmf.Size() {
-		return fmt.Errorf("the chunk is corrupted, wrong freeOffset=%d: %w", c.freeOffset, errors.ErrInvalid)
+		return fmt.Errorf("the chunk is corrupted, wrong freeOffset=%d: %w", c.freeOffset, errCorrupted)
 	}
 	if !fullCheck {
 		return nil
 	}
 
-	mb, err := c.getMetaBuf(0, c.total)
+	mb, err := c.getMetaBuf(0, int(c.total))
 	if err != nil {
 		return err
 	}
 	startOffs := c.freeOffset
 	var id ulid.ULID
-	pMax := int(c.mmf.Size() - int64(c.total*cMetaRecordSize))
-	for i := 0; i < c.total; i++ {
+	pMax := int32(c.mmf.Size() - int64(c.total*cMetaRecordSize))
+	for i := 0; i < int(c.total); i++ {
 		mr := mb.get(i)
 		if mr.ID.Compare(id) < 0 {
-			return fmt.Errorf("the record #%d ID=%s is less than the previous one %s: %w", i, mr.ID.String(), id.String(), errors.ErrInvalid)
+			return fmt.Errorf("the record #%d ID=%s is less than the previous one %s: %w", i, mr.ID.String(), id.String(), errCorrupted)
 		}
-		if int(mr.offset) != startOffs {
-			return fmt.Errorf("the record #%d offset=%d is not what expected %d: %w", i, mr.offset, startOffs, errors.ErrInvalid)
+		if mr.offset != startOffs {
+			return fmt.Errorf("the record #%d offset=%d is not what expected %d: %w", i, mr.offset, startOffs, errCorrupted)
 		}
 		id = mr.ID
-		startOffs = int(mr.offset + mr.size)
+		startOffs = mr.offset + mr.size
 		if startOffs > pMax {
-			return fmt.Errorf("the record #%d size=%d exceed the maximum payload value: %w", i, mr.size, errors.ErrInvalid)
+			return fmt.Errorf("the record #%d size=%d exceed the maximum payload value: %w", i, mr.size, errCorrupted)
 		}
 	}
 	return nil
@@ -206,6 +228,12 @@ func (c *Chunk) Close() error {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 	return c.close()
+}
+
+func (c *Chunk) isOpened() bool {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+	return c.mmf != nil
 }
 
 func (c *Chunk) close() error {
@@ -238,15 +266,15 @@ func (c *Chunk) AppendRecords(recs []*solaris.Record) error {
 		return err
 	}
 
-	mb, err := c.getMetaBuf(c.total+len(recs)-1, len(recs))
+	mb, err := c.getMetaBuf(int(c.total)+len(recs)-1, len(recs))
 	if err != nil {
 		return err
 	}
 
 	pOffset := c.freeOffset
 	for i, r := range recs {
-		mb.put(i, metaRec{ID: ulidutils.New(), offset: int32(pOffset), size: int32(len(r.Payload))})
-		pOffset += len(r.Payload)
+		mb.put(i, metaRec{ID: ulidutils.New(), offset: pOffset, size: int32(len(r.Payload))})
+		pOffset += int32(len(r.Payload))
 	}
 
 	pBuf, err := c.mmf.Buffer(int64(c.freeOffset), int(pSize))
@@ -256,12 +284,12 @@ func (c *Chunk) AppendRecords(recs []*solaris.Record) error {
 	}
 	pOffset = 0
 	for _, r := range recs {
-		copy(pBuf[pOffset:pOffset+len(r.Payload)], r.Payload)
-		pOffset += len(r.Payload)
+		copy(pBuf[pOffset:int(pOffset)+len(r.Payload)], r.Payload)
+		pOffset += int32(len(r.Payload))
 	}
 
-	c.freeOffset += pOffset
-	c.total += len(recs)
+	atomic.AddInt32(&c.freeOffset, pOffset)
+	atomic.AddInt32(&c.total, int32(len(recs)))
 	// update the header
 	hdr, err := c.mmf.Buffer(int64(len(hdrVersion)), 4)
 	if err != nil {
@@ -319,7 +347,7 @@ func (c *Chunk) growForWrite(size int64) error {
 	}
 
 	// now, move meta to the end of the new Chunk
-	mSize := c.total * cMetaRecordSize
+	mSize := int(c.total * cMetaRecordSize)
 	mOffset := oldSize - int64(mSize)
 	oldMBuf, err := c.mmf.Buffer(mOffset, mSize)
 	if err != nil {
@@ -347,7 +375,7 @@ func (c *Chunk) OpenChunkReader(descending bool) (*ChunkReader, error) {
 		c.lock.RUnlock()
 		return nil, fmt.Errorf("the chunk %s is closed: %w ", c.fn, errors.ErrClosed)
 	}
-	mb, err := c.getMetaBuf(c.total-1, c.total)
+	mb, err := c.getMetaBuf(int(c.total-1), int(c.total))
 	if err != nil {
 		c.lock.RUnlock()
 		return nil, err
@@ -360,7 +388,7 @@ func (c *Chunk) OpenChunkReader(descending bool) (*ChunkReader, error) {
 
 	if descending {
 		cr.inc = -1
-		cr.idx = cr.c.total - 1
+		cr.idx = int(cr.c.total) - 1
 	}
 	return cr, nil
 }
@@ -378,7 +406,7 @@ func payloadSize(recs []*solaris.Record) int64 {
 }
 
 func (cr *ChunkReader) HasNext() bool {
-	return cr.idx < cr.c.total && cr.idx > -1
+	return cr.idx < int(cr.c.total) && cr.idx > -1
 }
 
 func (cr *ChunkReader) Next() (UnsafeRecord, bool) {
@@ -408,16 +436,16 @@ func (cr *ChunkReader) Close() error {
 func (cr *ChunkReader) SetStartID(startID ulid.ULID) int {
 	res := 0
 	if cr.inc == -1 {
-		cr.idx = sort.Search(cr.c.total, func(i int) bool {
+		cr.idx = sort.Search(int(cr.c.total), func(i int) bool {
 			return cr.mb.get(i).ID.Compare(startID) > 0
 		})
 		cr.idx--
 		res = cr.idx + 1
 	} else {
-		cr.idx = sort.Search(cr.c.total, func(i int) bool {
+		cr.idx = sort.Search(int(cr.c.total), func(i int) bool {
 			return cr.mb.get(i).ID.Compare(startID) >= 0
 		})
-		res = cr.c.total - cr.idx
+		res = int(cr.c.total) - cr.idx
 	}
 	return res
 }
