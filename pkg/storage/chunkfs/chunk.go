@@ -349,6 +349,7 @@ func (c *Chunk) OpenChunkReader(descending bool) (*ChunkReader, error) {
 	}
 	mb, err := c.getMetaBuf(c.total-1, c.total)
 	if err != nil {
+		c.lock.RUnlock()
 		return nil, err
 	}
 
