@@ -39,7 +39,7 @@ type Provider struct {
 	maxFDs int
 	// standBy is the collection of opened Chunks that maybe removed
 	standBy *iterable.Map[string, *Chunk]
-	// otOpenList the list of chunks that have to be opened
+	// toOpenList the list of chunks that have to be opened
 	toOpenList []*Chunk
 	closed     bool
 	closedCh   chan struct{}
@@ -207,7 +207,7 @@ func (p *Provider) getChunkToOpen() *Chunk {
 		if p.active == p.maxFDs {
 			// the number of open chunks hits the limit
 			if p.standBy.Len() > 0 {
-				// some are opened and not used, let's close the lest used one
+				// some are opened and not used, let's close the least used one
 				id, _ := p.standBy.First()
 				c := p.chunks[id]
 				p.standBy.Remove(id)
@@ -232,8 +232,8 @@ func (p *Provider) getChunkToOpen() *Chunk {
 
 		if _, ok := p.standBy.Get(c.id); ok {
 			p.logger.Debugf("found the chunk=%v in the toOpenList, but all requestors are gone, will not open it now.", c)
-			// the chunk was requested to be opened, but all clients, who wanted to work with it, gone. Remove is from the
-			// lists
+			// the chunk was requested to be opened, but all clients, who wanted to work with it, gone.
+			// Remove it from the lists
 			p.standBy.Remove(c.id)
 			delete(p.chunks, c.id)
 			go func() {
