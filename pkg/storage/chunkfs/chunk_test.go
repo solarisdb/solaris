@@ -166,12 +166,12 @@ func TestChunk_AppendGrowth(t *testing.T) {
 	recs = append(recs, recs2...)
 
 	before := c.freeOffset
-	assert.Equal(t, len(recs), c.total)
+	assert.Equal(t, len(recs), int(c.total))
 	err = c.AppendRecords(generateRecords(1000, 30))
 	assert.NotNil(t, err)
 	assert.True(t, errors.Is(err, errors.ErrExhausted))
 	assert.Equal(t, before, c.freeOffset)
-	assert.Equal(t, len(recs), c.total)
+	assert.Equal(t, len(recs), int(c.total))
 
 	cr1, err = c.OpenChunkReader(false)
 	assert.Nil(t, err)
