@@ -34,7 +34,9 @@ func BenchmarkClosed(b *testing.B) {
 }
 
 func TestIsOpened(t *testing.T) {
-	ch := make(chan int)
+	var ch chan int
+	assert.False(t, IsOpened(ch))
+	ch = make(chan int)
 	assert.True(t, IsOpened(ch))
 	close(ch)
 	assert.False(t, IsOpened(ch))
