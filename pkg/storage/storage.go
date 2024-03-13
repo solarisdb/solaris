@@ -16,6 +16,7 @@ package storage
 
 import (
 	"context"
+	"github.com/oklog/ulid/v2"
 	"github.com/solarisdb/solaris/api/gen/solaris/v1"
 )
 
@@ -33,6 +34,16 @@ type (
 		QueryLogs(ctx context.Context, qr QueryLogsRequest) (*solaris.QueryLogsResult, error)
 		// DeleteLogs allows to either mark or delete logs permanently
 		DeleteLogs(ctx context.Context, request DeleteLogsRequest) (*solaris.CountResult, error)
+		GetLastChunk(ctx context.Context, logID string) (ChunkInfo, error)
+		GetChunks(ctx context.Context, logID string) ([]ChunkInfo, error)
+		UpsertChunkInfos(ctx context.Context, logID string, cis []ChunkInfo) error
+	}
+
+	ChunkInfo struct {
+		ID           string
+		Min          ulid.ULID
+		Max          ulid.ULID
+		RecordsCount int
 	}
 
 	// QueryLogsRequest is used for selecting list of known logs

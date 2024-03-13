@@ -21,5 +21,5 @@ func IsOpened[V any](ch chan V) bool {
 		return ok
 	default:
 	}
-	return true
+	return ch != nil
 }
