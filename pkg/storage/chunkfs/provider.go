@@ -36,6 +36,7 @@ type Provider struct {
 func NewProvider(dir string, maxOpenedChunks int) *Provider {
 	p := new(Provider)
 	p.logger = logging.NewLogger("chunkfs.Provider")
+	p.dir = dir
 	var err error
 	p.chunks, err = lru.NewReleasableCache[string, *Chunk](maxOpenedChunks, p.openChunk, p.closeChunk)
 	if err != nil {
