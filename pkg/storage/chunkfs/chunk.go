@@ -249,8 +249,8 @@ func (c *Chunk) close() error {
 }
 
 // AppendRecords allows to add new records into the chunk. The chunk size can be extended if the records do not fit into
-// the existing chunk. If the chunk reaches its maximum capacity it will not grow anymore. Only some records, which
-// fits into the chunk will be written. The result will contain the number of records actually written
+// the existing chunk. If the chunk reaches its maximum capacity it will not grow anymore. Only some records, that
+// fit into the chunk will be written. The result will contain the number of records actually written
 func (c *Chunk) AppendRecords(recs []*solaris.Record) (AppendRecordsResult, error) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
