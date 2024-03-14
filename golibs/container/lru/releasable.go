@@ -154,7 +154,7 @@ func (r *ReleasableCache[K, V]) GetOrCreate(ctx context.Context, k K) (Releasabl
 
 // Release allows to return the object back into the cache and let the cache know that the client is not
 // going to use the object. The client MUST NOT use the rlsbl after the call.
-func (r *ReleasableCache[K, V]) Release(rlsbl *Releasable[V]) error {
+func (r *ReleasableCache[K, V]) Release(rlsbl *Releasable[V]) {
 	r.lock.Lock()
 	defer r.lock.Unlock()
 	rlsbl.rh.refCounter--
@@ -166,7 +166,7 @@ func (r *ReleasableCache[K, V]) Release(rlsbl *Releasable[V]) error {
 			if r.onDeleteF != nil {
 				r.onDeleteF((rlsbl.k).(K), rlsbl.rh.value)
 			}
-			return nil
+			return
 		}
 		r.lruCache.Add((rlsbl.k).(K), rlsbl.rh.value)
 		if r.waiter != nil {
@@ -178,7 +178,7 @@ func (r *ReleasableCache[K, V]) Release(rlsbl *Releasable[V]) error {
 		}
 	}
 	rlsbl.rh = nil
-	return nil
+	return
 }
 
 // Close removes all not borrowed objects. The objects that are not released yet will be deleted after the
