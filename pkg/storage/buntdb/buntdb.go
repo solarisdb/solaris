@@ -430,8 +430,8 @@ func (s *Storage) GetChunks(ctx context.Context, logID string) ([]logfs.ChunkInf
 	tx := mustBeginTx(s.db, false)
 	defer mustRollback(tx)
 
-	if _, err := tx.Get(logKey(logID)); err != nil && errors.Is(err, buntdb.ErrNotFound) {
-		return nil, fmt.Errorf("log(ID=%s) does not exists: %w", logID, errors.ErrNotExist)
+	if _, err := s.getLogEntry(tx, logKey(logID), true); err != nil {
+		return nil, fmt.Errorf("getLogEntry(ID=%s) failed: %w", logID, err)
 	}
 
 	return getLogChunks(ctx, tx, logID)
@@ -442,8 +442,8 @@ func (s *Storage) UpsertChunkInfos(ctx context.Context, logID string, cis []logf
 	tx := mustBeginTx(s.db, true)
 	defer mustRollback(tx)
 
-	if _, err := tx.Get(logKey(logID)); err != nil && errors.Is(err, buntdb.ErrNotFound) {
-		return fmt.Errorf("log(ID=%s) does not exists: %w", logID, errors.ErrNotExist)
+	if _, err := s.getLogEntry(tx, logKey(logID), true); err != nil {
+		return fmt.Errorf("getLogEntry(ID=%s) failed: %w", logID, err)
 	}
 
 	for _, chnk := range cis {
