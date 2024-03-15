@@ -70,6 +70,13 @@ type (
 
 var _ storage.Log = (*localLog)(nil)
 
+const (
+	// ChunkMinID defines the lower boundary for chunk ID (exclusive)
+	ChunkMinID = ""
+	// ChunkMaxID defines the upper boundary for chunk ID (exclusive)
+	ChunkMaxID = "~"
+)
+
 // AppendRecords allows to write reocrds into the chunks on the local FS and update the Logs catalog with the new
 // chunks created
 func (l *localLog) AppendRecords(ctx context.Context, request *solaris.AppendRecordsRequest) (*solaris.AppendRecordsResult, error) {
