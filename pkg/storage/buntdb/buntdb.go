@@ -11,9 +11,11 @@ import (
 	"github.com/solarisdb/solaris/golibs/ulidutils"
 	"github.com/solarisdb/solaris/pkg/ql"
 	"github.com/solarisdb/solaris/pkg/storage"
+	"github.com/solarisdb/solaris/pkg/storage/logfs"
 	"github.com/tidwall/buntdb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"slices"
+	"strings"
 )
 
 type (
@@ -25,34 +27,37 @@ type (
 		DBFilePath string
 	}
 
-	// LogStorage is the logs meta storage,
-	// implements the storage.Logs interface
-	LogStorage struct {
+	// Storage is the logs meta storage
+	Storage struct {
 		cfg    *Config
 		db     *buntdb.DB
 		eval   *storage.LogCondEval
 		logger logging.Logger
 	}
 
-	entry struct {
+	logEntry struct {
 		*solaris.Log
 		Deleted bool `json:"deleted"`
 	}
+
+	chnkEntry struct {
+		logfs.ChunkInfo
+	}
 )
 
-// NewLogStorage creates new logs meta storage based on BuntDB
-func NewLogStorage(cfg Config) *LogStorage {
-	return &LogStorage{cfg: &cfg, eval: storage.NewLogCondEval(ql.LogsCondDialect)}
+// NewStorage creates new logs meta storage based on BuntDB
+func NewStorage(cfg Config) *Storage {
+	return &Storage{cfg: &cfg, eval: storage.NewLogCondEval(ql.LogsCondDialect)}
 }
 
 // Init implements linker.Initializer
-func (s *LogStorage) Init(ctx context.Context) error {
+func (s *Storage) Init(ctx context.Context) error {
 	path := s.cfg.DBFilePath
 	if len(path) == 0 {
 		path = ":memory:"
 	}
 
-	s.logger = logging.NewLogger("buntdb.LogStorage")
+	s.logger = logging.NewLogger("buntdb.Storage")
 	s.logger.Infof("Initializing with dbFilePath=%s", path)
 
 	var err error
@@ -64,33 +69,38 @@ func (s *LogStorage) Init(ctx context.Context) error {
 }
 
 // Shutdown implements linker.Shutdowner
-func (s *LogStorage) Shutdown() {
+func (s *Storage) Shutdown() {
 	s.logger.Infof("Shutting down...")
 	if s.db != nil {
 		_ = s.db.Close()
 	}
 }
 
+// ===================================== logs =====================================
+
 // CreateLog implements storage.Logs
-func (s *LogStorage) CreateLog(ctx context.Context, log *solaris.Log) (*solaris.Log, error) {
-	e := toEntry(log)
-	e.ID = ulidutils.NewID()
-	e.CreatedAt = timestamppb.Now()
-	e.UpdatedAt = e.CreatedAt
-	val := mustMarshal(e)
+func (s *Storage) CreateLog(ctx context.Context, log *solaris.Log) (*solaris.Log, error) {
+	le := toEntry(log)
+	le.ID = ulidutils.NewID()
+	le.CreatedAt = timestamppb.Now()
+	le.UpdatedAt = le.CreatedAt
 
 	tx := mustBeginTx(s.db, true)
 	defer mustRollback(tx)
 
-	if _, _, err := tx.Set(e.ID, val, nil); err != nil {
-		return nil, fmt.Errorf("tx.Set(%s, %s) failed: %w", e.ID, val, err)
+	key := logKey(le.ID)
+	val := mustMarshal(le)
+
+	if _, _, err := tx.Set(key, val, nil); err != nil {
+		return nil, fmt.Errorf("tx.Set(%s, %s) failed: %w", key, val, err)
 	}
+
 	mustCommit(tx)
-	return toLog(e), nil
+	return toLog(le), nil
 }
 
 // GetLogByID implements storage.Logs
-func (s *LogStorage) GetLogByID(ctx context.Context, id string) (*solaris.Log, error) {
+func (s *Storage) GetLogByID(ctx context.Context, id string) (*solaris.Log, error) {
 	if len(id) == 0 {
 		return nil, fmt.Errorf("id must be specified: %w", errors.ErrInvalid)
 	}
@@ -98,12 +108,12 @@ func (s *LogStorage) GetLogByID(ctx context.Context, id string) (*solaris.Log, e
 	tx := mustBeginTx(s.db, false)
 	defer mustRollback(tx)
 
-	e, err := s.getEntry(tx, id, true)
+	e, err := s.getLogEntry(tx, logKey(id), true)
 	return toLog(e), err
 }
 
 // UpdateLog implements storage.Logs
-func (s *LogStorage) UpdateLog(ctx context.Context, log *solaris.Log) (*solaris.Log, error) {
+func (s *Storage) UpdateLog(ctx context.Context, log *solaris.Log) (*solaris.Log, error) {
 	if len(log.ID) == 0 {
 		return nil, fmt.Errorf("log id must be specified: %w", errors.ErrInvalid)
 	}
@@ -111,91 +121,84 @@ func (s *LogStorage) UpdateLog(ctx context.Context, log *solaris.Log) (*solaris.
 	tx := mustBeginTx(s.db, true)
 	defer mustRollback(tx)
 
-	_, err := s.getEntry(tx, log.ID, true)
+	_, err := s.getLogEntry(tx, logKey(log.ID), true)
 	if err != nil {
 		return nil, err
 	}
 
-	e := toEntry(log)
-	e.UpdatedAt = timestamppb.Now()
+	le := toEntry(log)
+	le.UpdatedAt = timestamppb.Now()
 
-	val := mustMarshal(e)
-	if _, replaced, err := tx.Set(e.ID, val, nil); err != nil || !replaced {
-		return nil, fmt.Errorf("tx.Set(%s, %s) failed (replaced=%t): %w", e.ID, val, replaced, err)
+	key := logKey(le.ID)
+	val := mustMarshal(le)
+
+	var replaced bool
+	if _, replaced, err = tx.Set(key, val, nil); err != nil || !replaced {
+		return nil, fmt.Errorf("tx.Set(key=%s, val=%s) failed, replaced=%t: %w", key, val, replaced, err)
 	}
 
 	mustCommit(tx)
-	return toLog(e), nil
+	return toLog(le), nil
 }
 
 // QueryLogs implements storage.Logs
-func (s *LogStorage) QueryLogs(ctx context.Context, qr storage.QueryLogsRequest) (*solaris.QueryLogsResult, error) {
+func (s *Storage) QueryLogs(ctx context.Context, qr storage.QueryLogsRequest) (*solaris.QueryLogsResult, error) {
 	var (
 		qRes = &solaris.QueryLogsResult{}
 		err  error
 	)
 
 	if len(qr.IDs) > 0 {
-		qRes, err = s.queryByIDs(ctx, qr)
+		qRes, err = s.queryLogsByIDs(ctx, qr, !qr.Deleted)
+		if err != nil {
+			return nil, fmt.Errorf("queryLogsByIDs(IDs=%v) failed: %w", qr.IDs, err)
+		}
 	} else if len(qr.Condition) > 0 {
-		qRes, err = s.queryByCondition(ctx, qr, true)
-	}
-	if err != nil {
-		return nil, fmt.Errorf("querly logs error: %w", err)
+		qRes, err = s.queryLogsByCondition(ctx, qr, !qr.Deleted)
+		if err != nil {
+			return nil, fmt.Errorf("queryLogsByCondition(Cond=%s) failed: %w", qr.Condition, err)
+		}
 	}
 	return qRes, nil
 }
 
 // DeleteLogs implements storage.Logs
-func (s *LogStorage) DeleteLogs(ctx context.Context, req storage.DeleteLogsRequest) (*solaris.CountResult, error) {
+func (s *Storage) DeleteLogs(ctx context.Context, req storage.DeleteLogsRequest) (*solaris.CountResult, error) {
 	var (
 		dRes = &solaris.CountResult{}
 		err  error
 	)
 
 	if len(req.IDs) > 0 {
-		dRes, err = s.deleteByIDs(ctx, req)
+		dRes, err = s.deleteLogsByIDs(ctx, req)
+		if err != nil {
+			return nil, fmt.Errorf("deleteLogsByIDs(IDs=%v) failed: %w", req.IDs, err)
+		}
 	} else if len(req.Condition) > 0 {
-		dRes, err = s.deleteByCondition(ctx, req)
-	}
-	if err != nil {
-		return nil, fmt.Errorf("delete logs error: %w", err)
+		dRes, err = s.deleteLogsByCondition(ctx, req)
+		if err != nil {
+			return nil, fmt.Errorf("deleteLogsByCondition(Cond=%s) failed: %w", req.Condition, err)
+		}
 	}
 	return dRes, nil
 }
 
-func (s *LogStorage) deleteByIDs(ctx context.Context, req storage.DeleteLogsRequest) (*solaris.CountResult, error) {
+func (s *Storage) deleteLogsByIDs(ctx context.Context, req storage.DeleteLogsRequest) (*solaris.CountResult, error) {
 	tx := mustBeginTx(s.db, true)
 	defer mustRollback(tx)
 
 	var deleted int64
-	logIDs := slices.Clone(req.IDs)
-
-	for _, id := range logIDs {
+	for _, id := range slices.Clone(req.IDs) {
 		if ctx.Err() != nil {
 			return nil, fmt.Errorf("context error: %w", ctx.Err())
 		}
 		if req.MarkOnly {
-			e, err := s.getEntry(tx, id, true)
-			if err != nil && errors.Is(err, errors.ErrNotExist) {
-				continue
-			}
-			if err != nil {
-				return nil, err
-			}
-			e.Deleted = true
-			e.UpdatedAt = timestamppb.Now()
-			val := mustMarshal(e)
-			if _, replaced, err := tx.Set(e.ID, val, nil); err != nil || !replaced {
-				return nil, fmt.Errorf("(markOnly=%t) tx.Set(%s, %s) failed (replaced=%t): %w", req.MarkOnly, e.ID, val, replaced, err)
+			if err := s.markLogDeleted(tx, id); err != nil {
+				return nil, fmt.Errorf("markLogDeleted(ID=%s) failed: %w", id, err)
 			}
 		} else {
-			_, err := tx.Delete(id)
-			if err != nil && errors.Is(err, buntdb.ErrNotFound) {
-				continue
-			}
-			if err != nil {
-				return nil, fmt.Errorf("(markOnly=%t) tx.Delete(%s) failed: %w", req.MarkOnly, id, err)
+			if err := s.deleteLog(ctx, tx, id); err != nil && !errors.Is(err, errors.ErrNotExist) {
+				return nil, fmt.Errorf("deleteLog(ID=%s) failed: %w", id, err)
 			}
 		}
 		deleted++
@@ -207,26 +210,70 @@ func (s *LogStorage) deleteByIDs(ctx context.Context, req storage.DeleteLogsRequ
 	}, nil
 }
 
-func (s *LogStorage) deleteByCondition(ctx context.Context, req storage.DeleteLogsRequest) (*solaris.CountResult, error) {
+func (s *Storage) deleteLog(ctx context.Context, tx *buntdb.Tx, logID string) error {
+	key := logKey(logID)
+	_, err := tx.Delete(key)
+	if err != nil && errors.Is(err, buntdb.ErrNotFound) {
+		return errors.ErrNotExist
+	}
+	if err != nil {
+		return fmt.Errorf("tx.Delete(key=%s) failed: %w", key, err)
+	}
+	cis, err := getLogChunks(ctx, tx, logID)
+	if err != nil {
+		return fmt.Errorf("getLogChunks(ID=%s) failed: %w", logID, err)
+	}
+	for _, ci := range cis {
+		key = chnkKey(logID, ci.ID)
+		if _, err = tx.Delete(key); err != nil && errors.Is(err, buntdb.ErrNotFound) {
+			return fmt.Errorf("tx.Delete(key=%s) failed: %w", key, err)
+		}
+	}
+	return nil
+}
+
+func (s *Storage) markLogDeleted(tx *buntdb.Tx, logID string) error {
+	le, err := s.getLogEntry(tx, logKey(logID), true)
+	if err != nil && errors.Is(err, errors.ErrNotExist) {
+		return errors.ErrNotExist
+	}
+	if err != nil {
+		return err
+	}
+
+	le.Deleted = true
+	le.UpdatedAt = timestamppb.Now()
+
+	key := logKey(le.ID)
+	val := mustMarshal(le)
+
+	var replaced bool
+	if _, replaced, err = tx.Set(key, val, nil); err != nil || !replaced {
+		return fmt.Errorf("tx.Set(key=%s, val=%s) failed, replaced=%t: %w", key, val, replaced, err)
+	}
+	return nil
+}
+
+func (s *Storage) deleteLogsByCondition(ctx context.Context, req storage.DeleteLogsRequest) (*solaris.CountResult, error) {
 	var logIDs []string
-	qRes, err := s.queryByCondition(ctx, storage.QueryLogsRequest{Condition: req.Condition, Limit: 1000}, req.MarkOnly)
+	qRes, err := s.queryLogsByCondition(ctx, storage.QueryLogsRequest{Condition: req.Condition, Limit: 1000}, req.MarkOnly)
 	for err == nil && len(qRes.Logs) > 0 {
 		for _, log := range qRes.Logs {
 			logIDs = append(logIDs, log.ID)
 		}
 		qRes.Logs = nil
 		if len(qRes.NextPageID) > 0 {
-			qRes, err = s.queryByCondition(ctx, storage.QueryLogsRequest{Condition: req.Condition,
+			qRes, err = s.queryLogsByCondition(ctx, storage.QueryLogsRequest{Condition: req.Condition,
 				Page: qRes.NextPageID, Limit: 1000}, req.MarkOnly)
 		}
 	}
 	if err != nil {
 		return nil, err
 	}
-	return s.deleteByIDs(ctx, storage.DeleteLogsRequest{IDs: logIDs, MarkOnly: req.MarkOnly})
+	return s.deleteLogsByIDs(ctx, storage.DeleteLogsRequest{IDs: logIDs, MarkOnly: req.MarkOnly})
 }
 
-func (s *LogStorage) queryByIDs(ctx context.Context, qr storage.QueryLogsRequest) (*solaris.QueryLogsResult, error) {
+func (s *Storage) queryLogsByIDs(ctx context.Context, qr storage.QueryLogsRequest, skipMarkedDeleted bool) (*solaris.QueryLogsResult, error) {
 	limit := min(int(qr.Limit), 1000)
 	if qr.Limit == 0 {
 		limit = 50
@@ -234,8 +281,14 @@ func (s *LogStorage) queryByIDs(ctx context.Context, qr storage.QueryLogsRequest
 
 	logIDs := slices.Clone(qr.IDs)
 	slices.Sort(logIDs)
-	if startIdx, found := slices.BinarySearch(logIDs, qr.Page); found {
-		logIDs = logIDs[startIdx:]
+
+	startIdx, _ := slices.BinarySearch(logIDs, qr.Page)
+	if startIdx == len(logIDs) {
+		return &solaris.QueryLogsResult{
+			Logs:       nil,
+			NextPageID: "",
+			Total:      int64(len(logIDs)),
+		}, nil
 	}
 
 	tx := mustBeginTx(s.db, false)
@@ -244,14 +297,11 @@ func (s *LogStorage) queryByIDs(ctx context.Context, qr storage.QueryLogsRequest
 	var total int64
 	var qLogs []*solaris.Log
 
-	for _, id := range logIDs {
+	for _, id := range logIDs[startIdx:] {
 		if ctx.Err() != nil {
 			return nil, fmt.Errorf("context error: %w", ctx.Err())
 		}
-		if id < qr.Page {
-			continue
-		}
-		e, err := s.getEntry(tx, id, true)
+		le, err := s.getLogEntry(tx, logKey(id), skipMarkedDeleted)
 		if err != nil && errors.Is(err, errors.ErrNotExist) {
 			continue
 		}
@@ -260,7 +310,7 @@ func (s *LogStorage) queryByIDs(ctx context.Context, qr storage.QueryLogsRequest
 		}
 		total++
 		if len(qLogs) <= limit { // = for pagination
-			qLogs = append(qLogs, e.Log)
+			qLogs = append(qLogs, le.Log)
 		}
 	}
 
@@ -276,7 +326,7 @@ func (s *LogStorage) queryByIDs(ctx context.Context, qr storage.QueryLogsRequest
 	}, nil
 }
 
-func (s *LogStorage) queryByCondition(ctx context.Context, qr storage.QueryLogsRequest, skipMarkedDeleted bool) (*solaris.QueryLogsResult, error) {
+func (s *Storage) queryLogsByCondition(ctx context.Context, qr storage.QueryLogsRequest, skipMarkedDeleted bool) (*solaris.QueryLogsResult, error) {
 	expr, err := ql.Parse(qr.Condition)
 	if err != nil {
 		return nil, fmt.Errorf("condition=%q parse error=%v: %w", qr.Condition, err, errors.ErrInvalid)
@@ -296,11 +346,11 @@ func (s *LogStorage) queryByCondition(ctx context.Context, qr storage.QueryLogsR
 			iterErr = fmt.Errorf("context error: %w", ctx.Err())
 			return false
 		}
-		e := mustUnmarshal(val)
-		if skipMarkedDeleted && e.Deleted {
+		le := mustUnmarshal[logEntry](val)
+		if skipMarkedDeleted && le.Deleted {
 			return true
 		}
-		ok, evalErr := s.eval.Eval(e.Log, expr)
+		ok, evalErr := s.eval.Eval(le.Log, expr)
 		if evalErr != nil {
 			iterErr = fmt.Errorf("condition=%q eval error: %w", qr.Condition, evalErr)
 			return false
@@ -308,7 +358,7 @@ func (s *LogStorage) queryByCondition(ctx context.Context, qr storage.QueryLogsR
 		if ok {
 			total++
 			if len(qLogs) <= limit { // = for pagination
-				qLogs = append(qLogs, e.Log)
+				qLogs = append(qLogs, le.Log)
 			}
 		}
 		return true
@@ -317,11 +367,11 @@ func (s *LogStorage) queryByCondition(ctx context.Context, qr storage.QueryLogsR
 	tx := mustBeginTx(s.db, false)
 	defer mustRollback(tx)
 
-	if err = tx.AscendGreaterOrEqual("", qr.Page, iter); err != nil {
-		return nil, fmt.Errorf("quering failed: %w", err)
+	if err = tx.AscendGreaterOrEqual("", logKey(qr.Page), iter); err != nil {
+		return nil, fmt.Errorf("iteration failed: %w", err)
 	}
 	if iterErr != nil {
-		return nil, err
+		return nil, iterErr
 	}
 
 	var nextPageID string
@@ -335,6 +385,112 @@ func (s *LogStorage) queryByCondition(ctx context.Context, qr storage.QueryLogsR
 		Total:      total,
 	}, nil
 }
+
+func (s *Storage) getLogEntry(tx *buntdb.Tx, key string, skipMarkedDeleted bool) (logEntry, error) {
+	val, err := getValue(tx, key)
+	if err != nil {
+		return logEntry{}, err
+	}
+	var le logEntry
+	if le = mustUnmarshal[logEntry](val); skipMarkedDeleted && le.Deleted {
+		return logEntry{}, errors.ErrNotExist
+	}
+	return le, nil
+}
+
+func logKey(id string) string {
+	return fmt.Sprintf("/logs/%s", id)
+}
+
+// ===================================== chunks =====================================
+
+// GetLastChunk implements logfs.LogsMetaStorage
+func (s *Storage) GetLastChunk(ctx context.Context, logID string) (logfs.ChunkInfo, error) {
+	tx := mustBeginTx(s.db, false)
+	defer mustRollback(tx)
+
+	var ce *chnkEntry
+	iter := func(key, value string) bool {
+		ce = mustUnmarshal[*chnkEntry](value)
+		return false
+	}
+
+	if err := tx.DescendRange("", chnkKey(logID, logfs.ChunkMaxID), chnkKey(logID, logfs.ChunkMinID), iter); err != nil {
+		return logfs.ChunkInfo{}, fmt.Errorf("iteration failed: %w", err)
+	}
+	if ce == nil {
+		return logfs.ChunkInfo{}, errors.ErrNotExist
+	}
+
+	return ce.ChunkInfo, nil
+}
+
+// GetChunks implements logfs.LogsMetaStorage
+func (s *Storage) GetChunks(ctx context.Context, logID string) ([]logfs.ChunkInfo, error) {
+	tx := mustBeginTx(s.db, false)
+	defer mustRollback(tx)
+
+	if _, err := tx.Get(logKey(logID)); err != nil && errors.Is(err, buntdb.ErrNotFound) {
+		return nil, fmt.Errorf("log(ID=%s) does not exists: %w", logID, errors.ErrNotExist)
+	}
+
+	return getLogChunks(ctx, tx, logID)
+}
+
+// UpsertChunkInfos implements logfs.LogsMetaStorage
+func (s *Storage) UpsertChunkInfos(ctx context.Context, logID string, cis []logfs.ChunkInfo) error {
+	tx := mustBeginTx(s.db, true)
+	defer mustRollback(tx)
+
+	if _, err := tx.Get(logKey(logID)); err != nil && errors.Is(err, buntdb.ErrNotFound) {
+		return fmt.Errorf("log(ID=%s) does not exists: %w", logID, errors.ErrNotExist)
+	}
+
+	for _, chnk := range cis {
+		if ctx.Err() != nil {
+			return fmt.Errorf("context error: %w", ctx.Err())
+		}
+		if strings.TrimSpace(chnk.ID) == "" {
+			return fmt.Errorf("invalid chunk ID=%s: %w", chnk.ID, errors.ErrInvalid)
+		}
+
+		key := chnkKey(logID, chnk.ID)
+		val := mustMarshal(chnkEntry{ChunkInfo: chnk})
+
+		if _, _, err := tx.Set(key, val, nil); err != nil {
+			return fmt.Errorf("tx.Set(key=%s, val=%s) failed: %w", key, val, err)
+		}
+	}
+
+	mustCommit(tx)
+	return nil
+}
+
+func getLogChunks(ctx context.Context, tx *buntdb.Tx, logID string) ([]logfs.ChunkInfo, error) {
+	var iterErr error
+	var cis []logfs.ChunkInfo
+	iter := func(key, value string) bool {
+		if ctx.Err() != nil {
+			iterErr = fmt.Errorf("context error: %w", ctx.Err())
+			return false
+		}
+		cis = append(cis, mustUnmarshal[chnkEntry](value).ChunkInfo)
+		return true
+	}
+	if err := tx.AscendRange("", chnkKey(logID, logfs.ChunkMinID), chnkKey(logID, logfs.ChunkMaxID), iter); err != nil {
+		return nil, fmt.Errorf("iteration failed: %w", err)
+	}
+	if iterErr != nil {
+		return nil, iterErr
+	}
+	return cis, nil
+}
+
+func chnkKey(logID, chnkID string) string {
+	return fmt.Sprintf("%s/chunks/%s", logKey(logID), chnkID)
+}
+
+// ===================================== helpers =====================================
 
 func mustBeginTx(db *buntdb.DB, writable bool) *buntdb.Tx {
 	tx, err := db.Begin(writable)
@@ -356,53 +512,38 @@ func mustRollback(tx *buntdb.Tx) {
 	}
 }
 
-func (s *LogStorage) getEntry(tx *buntdb.Tx, key string, skipMarkedDeleted bool) (*entry, error) {
+func getValue(tx *buntdb.Tx, key string) (string, error) {
 	val, err := tx.Get(key, true)
 	if err != nil && errors.Is(err, buntdb.ErrNotFound) {
-		return nil, fmt.Errorf("entry does not exist: %w", errors.ErrNotExist)
+		return "", errors.ErrNotExist
 	}
 	if err != nil {
-		return nil, fmt.Errorf("tx.Get(%s) failed: %w", key, err)
+		return "", fmt.Errorf("getValue(key=%s) failed: %w", key, err)
 	}
-	var e *entry
-	if e = mustUnmarshal(val); skipMarkedDeleted && e.Deleted {
-		return nil, errors.ErrNotExist
-	}
-	return e, nil
+	return val, nil
 }
 
-func mustMarshal(e *entry) string {
-	if e == nil {
-		return ""
-	}
-	bytes, err := json.Marshal(e)
+func mustMarshal[T any](obj T) string {
+	bytes, err := json.Marshal(obj)
 	if err != nil {
 		panic(fmt.Errorf("mustMarshal() failed: %v", err))
 	}
 	return cast.ByteArrayToString(bytes)
 }
 
-func mustUnmarshal(val string) *entry {
+func mustUnmarshal[T any](val string) T {
 	bytes := cast.StringToByteArray(val)
-	e := new(entry)
+	e := new(T)
 	if err := json.Unmarshal(bytes, e); err != nil {
 		panic(fmt.Errorf("mustUnmarshal() failed: %v", err))
 	}
-	return e
+	return *e
 }
 
-func toEntry(log *solaris.Log) *entry {
-	if log == nil {
-		return nil
-	}
-	e := new(entry)
-	e.Log = log
-	return e
+func toEntry(log *solaris.Log) logEntry {
+	return logEntry{Log: log}
 }
 
-func toLog(e *entry) *solaris.Log {
-	if e == nil {
-		return nil
-	}
-	return e.Log
+func toLog(le logEntry) *solaris.Log {
+	return le.Log
 }

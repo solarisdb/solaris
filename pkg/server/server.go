@@ -44,7 +44,7 @@ func Run(ctx context.Context, cfg *Config) error {
 
 	inj := linker.New()
 	inj.Register(linker.Component{Name: "", Value: grpc.NewServer(grpc.Config{Transport: *cfg.GrpcTransport, RegisterEndpoints: grpcRegF})})
-	inj.Register(linker.Component{Name: "", Value: buntdb.NewLogStorage(buntdb.Config{})})
+	inj.Register(linker.Component{Name: "", Value: buntdb.NewStorage(buntdb.Config{DBFilePath: cfg.MetaDBFilePath})})
 
 	inj.Init(ctx)
 	<-ctx.Done()
