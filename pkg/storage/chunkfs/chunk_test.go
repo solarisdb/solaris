@@ -55,7 +55,8 @@ func TestChunk_Open(t *testing.T) {
 
 	fn := filepath.Join(dir, "c1")
 	c := NewChunk(fn, "c1")
-	assert.NotNil(t, c.AppendRecords(generateRecords(1, 1)))
+	_, err = c.AppendRecords(generateRecords(1, 1))
+	assert.NotNil(t, err)
 	_, err = c.OpenChunkReader(false)
 	assert.NotNil(t, err)
 	assert.Nil(t, c.Open(true))
@@ -86,7 +87,9 @@ func TestChunk_SimpleAppend(t *testing.T) {
 	c := NewChunk(fn, "c1")
 	assert.Nil(t, c.Open(false))
 	recs := generateRecords(3, 10)
-	assert.Nil(t, c.AppendRecords(recs))
+	arr, err := c.AppendRecords(recs)
+	assert.Nil(t, err)
+	assert.Equal(t, 3, arr.Written)
 	defer c.Close()
 
 	cr1, err := c.OpenChunkReader(false)
@@ -127,7 +130,9 @@ func TestChunk_AppendGrowth(t *testing.T) {
 	c := NewChunk(fn, "c1")
 	assert.Nil(t, c.Open(false))
 	recs := generateRecords(3, 10)
-	assert.Nil(t, c.AppendRecords(recs))
+	arr, err := c.AppendRecords(recs)
+	assert.Nil(t, err)
+	assert.Equal(t, 3, arr.Written)
 	defer c.Close()
 
 	fi, err := os.Stat(fn)
@@ -136,12 +141,14 @@ func TestChunk_AppendGrowth(t *testing.T) {
 
 	recs2 := generateRecords(100, 30)
 	recs = append(recs, recs2...)
-	assert.Nil(t, c.AppendRecords(recs2))
+	_, err = c.AppendRecords(recs2)
+	assert.Nil(t, err)
 	fi, err = os.Stat(fn)
 	assert.Nil(t, err)
 	assert.Equal(t, 2*cfg.newSize, fi.Size())
 
-	assert.Nil(t, c.AppendRecords(recs2))
+	_, err = c.AppendRecords(recs2)
+	assert.Nil(t, err)
 	fi, err = os.Stat(fn)
 	assert.Nil(t, err)
 	assert.Equal(t, 3*cfg.newSize, fi.Size())
@@ -159,7 +166,8 @@ func TestChunk_AppendGrowth(t *testing.T) {
 	cr1.Close()
 
 	container.SliceReverse(recs)
-	assert.Nil(t, c.AppendRecords(recs2))
+	_, err = c.AppendRecords(recs2)
+	assert.Nil(t, err)
 	fi, err = os.Stat(fn)
 	assert.Nil(t, err)
 	assert.Equal(t, 4*cfg.newSize, fi.Size())
@@ -167,7 +175,7 @@ func TestChunk_AppendGrowth(t *testing.T) {
 
 	before := c.freeOffset
 	assert.Equal(t, len(recs), int(c.total))
-	err = c.AppendRecords(generateRecords(1000, 30))
+	_, err = c.AppendRecords(generateRecords(1000, 30))
 	assert.NotNil(t, err)
 	assert.True(t, errors.Is(err, errors.ErrExhausted))
 	assert.Equal(t, before, c.freeOffset)
@@ -177,6 +185,26 @@ func TestChunk_AppendGrowth(t *testing.T) {
 	assert.Nil(t, err)
 	checkRecords(t, cr1, recs)
 	cr1.Close()
+}
+
+func TestChunk_AppendGrowth2(t *testing.T) {
+	dir, err := os.MkdirTemp("", "TestChunk_AppendGrowth2")
+	assert.Nil(t, err)
+	defer os.RemoveAll(dir)
+
+	cfg.newSize = files.BlockSize
+	cfg.maxChunkSize = 5 * files.BlockSize
+	cfg.maxGrowIncreaseSize = 1 * files.BlockSize
+
+	fn := filepath.Join(dir, "c1")
+	c := NewChunk(fn, "c1")
+	assert.Nil(t, c.Open(false))
+	defer c.Close()
+	recs := generateRecords(3000, 512)
+	arr, err := c.AppendRecords(recs)
+	assert.Nil(t, err)
+	assert.Equal(t, 38, arr.Written)
+	assert.True(t, arr.StartID.Compare(arr.LastID) < 0)
 }
 
 func checkRecords(t *testing.T, it *ChunkReader, recs []*solaris.Record) {
