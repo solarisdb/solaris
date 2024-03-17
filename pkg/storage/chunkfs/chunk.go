@@ -33,6 +33,7 @@ type (
 	Chunk struct {
 		id   string
 		fn   string
+		cfg  Config
 		mmf  *files.MMFile
 		lock sync.RWMutex
 		// freeOffset points to the first available byte for write
@@ -75,14 +76,21 @@ type (
 		offset int32
 		size   int32
 	}
+
+	// Config defines the chunk settings
+	Config struct {
+		NewSize             int64
+		MaxChunkSize        int64
+		MaxGrowIncreaseSize int64
+	}
 )
 
 const (
 	// new Chunk initial size
 	cNewSize = files.BlockSize * 16
-	// maxGrowIncreaseSize specifies that the Chunk size may not be increased more than the maxGrowIncreaseSize
+	// MaxGrowIncreaseSize specifies that the Chunk size may not be increased more than the MaxGrowIncreaseSize
 	cMaxGrowIncreaseSize = files.BlockSize * 256
-	// maxChunkSize defines the maximum Chunk size. No Chunk may exceed the size
+	// MaxChunkSize defines the maximum Chunk size. No Chunk may exceed the size
 	cMaxChunkSize = files.BlockSize * 512 * 1024
 	cHeaderSize   = 32
 	// cMetaRecordSize is the size of one meta-record
@@ -91,18 +99,15 @@ const (
 
 var hdrVersion = []byte{'S', 'O', 'L', 'A', 'R', 'I', 'S', 1}
 var _ iterable.Iterator[UnsafeRecord] = (*ChunkReader)(nil)
-
-var cfg = struct {
-	newSize             int64
-	maxChunkSize        int64
-	maxGrowIncreaseSize int64
-}{
-	newSize:             cNewSize,
-	maxChunkSize:        cMaxChunkSize,
-	maxGrowIncreaseSize: cMaxGrowIncreaseSize,
-}
-
 var errCorrupted = fmt.Errorf("file chunk corrupted")
+
+func GetDefaultConfig() Config {
+	return Config{
+		NewSize:             cNewSize,
+		MaxChunkSize:        cMaxChunkSize,
+		MaxGrowIncreaseSize: cMaxGrowIncreaseSize,
+	}
+}
 
 func (mb metaBuf) get(idx int) metaRec {
 	off := len(mb) - (idx+1)*cMetaRecordSize
@@ -130,10 +135,11 @@ func (mb metaBuf) put(idx int, mr metaRec) {
 }
 
 // NewChunk creates new Chunk
-func NewChunk(fileName, id string) *Chunk {
+func NewChunk(fileName, id string, cfg Config) *Chunk {
 	return &Chunk{
 		id:     id,
 		fn:     fileName,
+		cfg:    cfg,
 		logger: logging.NewLogger(fmt.Sprintf("chunkfs.Chunk.%s", id)),
 	}
 }
@@ -154,8 +160,8 @@ func (c *Chunk) Open(fullCheck bool) error {
 	if c.mmf != nil {
 		return nil
 	}
-	c.logger.Infof("opening, fullCheck=%t", fullCheck)
-	mmf, err := files.NewMMFile(c.fn, cfg.newSize)
+	c.logger.Debugf("opening, fullCheck=%t", fullCheck)
+	mmf, err := files.NewMMFile(c.fn, c.cfg.NewSize)
 	if err != nil {
 		return err
 	}
@@ -164,7 +170,7 @@ func (c *Chunk) Open(fullCheck bool) error {
 	if err != nil {
 		c.close()
 	} else {
-		c.logger.Infof("opened size=%d, total=%d, freeOffset=%d", c.mmf.Size(), c.total, c.freeOffset)
+		c.logger.Debugf("opened size=%d, total=%d, freeOffset=%d", c.mmf.Size(), c.total, c.freeOffset)
 	}
 	return err
 }
@@ -242,6 +248,7 @@ func (c *Chunk) isOpened() bool {
 func (c *Chunk) close() error {
 	var err error
 	if c.mmf != nil {
+		c.logger.Debugf("closing")
 		err = c.mmf.Close()
 		c.mmf = nil
 	}
@@ -330,19 +337,19 @@ func (c *Chunk) growForWrite(size int64) error {
 
 	// check whether we may write at all
 	afterWriteSize := c.mmf.Size() - avail + size
-	if afterWriteSize > cfg.maxChunkSize {
-		// with all the records we will exceed the maxChunkSize
-		return fmt.Errorf("could not write %d bytes, cause the chunks size will be %d, which will exceed the maximum value=%d: %w", size, afterWriteSize, cfg.maxChunkSize, errors.ErrExhausted)
+	if afterWriteSize > c.cfg.MaxChunkSize {
+		// with all the records we will exceed the MaxChunkSize
+		return fmt.Errorf("could not write %d bytes, cause the chunks size will be %d, which will exceed the maximum value=%d: %w", size, afterWriteSize, c.cfg.MaxChunkSize, errors.ErrExhausted)
 	}
 
-	inc := min(cfg.maxGrowIncreaseSize, c.mmf.Size())
+	inc := min(c.cfg.MaxGrowIncreaseSize, c.mmf.Size())
 	if avail+inc < size {
 		inc = ((size-avail)/files.BlockSize + 1) * files.BlockSize
 	}
 	newSize := c.mmf.Size() + inc
-	if newSize > cfg.maxChunkSize {
+	if newSize > c.cfg.MaxChunkSize {
 		// it should be enough, because we checked the condition above
-		newSize = cfg.maxChunkSize
+		newSize = c.cfg.MaxChunkSize
 	}
 
 	oldSize := c.mmf.Size()
@@ -409,7 +416,7 @@ func (c *Chunk) available() int64 {
 // writable returns the number of records and the total size of the records, that can fit into the
 // chunk, even if it will grow.
 func (c *Chunk) writable(recs []*solaris.Record) (int, int) {
-	maxAvaialbe := int(cfg.maxChunkSize) - c.freeOffset + c.total*cMetaRecordSize
+	maxAvaialbe := int(c.cfg.MaxChunkSize) - c.freeOffset + c.total*cMetaRecordSize
 	totalSize := 0
 	for i, r := range recs {
 		recSize := len(r.Payload) + cMetaRecordSize

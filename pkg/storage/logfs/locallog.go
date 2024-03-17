@@ -37,6 +37,7 @@ type (
 		LMStorage    LogsMetaStorage   `inject:""`
 		ChnkProvider *chunkfs.Provider `inject:""`
 
+		cfg     Config
 		logger  logging.Logger
 		lockers *lru.ReleasableCache[string, *logLocker]
 	}
@@ -69,6 +70,28 @@ type (
 )
 
 var _ storage.Log = (*localLog)(nil)
+
+// NewLocalLog creates the new localLog object for the cfg provided
+func NewLocalLog(cfg Config) *localLog {
+	l := new(localLog)
+	l.cfg = cfg
+	l.logger = logging.NewLogger("localLog")
+	var err error
+	l.lockers, err = lru.NewReleasableCache[string, *logLocker](cfg.MaxLocks,
+		func(ctx context.Context, lid string) (*logLocker, error) {
+			return &logLocker{}, nil
+		}, nil)
+	if err != nil {
+		panic(err)
+	}
+	return l
+}
+
+// Shutdown implements linker.Shutdowner
+func (l *localLog) Shutdown() {
+	l.logger.Infof("Shutting down.")
+	l.lockers.Close()
+}
 
 // AppendRecords allows to write reocrds into the chunks on the local FS and update the Logs catalog with the new
 // chunks created
@@ -142,7 +165,10 @@ func (l *localLog) AppendRecords(ctx context.Context, request *solaris.AppendRec
 	return &solaris.AppendRecordsResult{Added: int64(added)}, gerr
 }
 
-func (l *localLog) QueryRecords(ctx context.Context, request storage.QueryRecordsRequest) ([]*solaris.Record, error) {
+// QueryRecords allows to retrieve records from the Log by its ID. The function will control the limit of the result. If
+// the number of records or the cumulative payload size hit the limits the function may return fewer records than requested
+// or available. The second return parameters returns whether there are potentially more records than requested.
+func (l *localLog) QueryRecords(ctx context.Context, request storage.QueryRecordsRequest) ([]*solaris.Record, bool, error) {
 	lid := request.LogID
 
 	// the l.lockers plays a role of limiter as well, it doesn't allow to have more than N locks available,
@@ -152,17 +178,17 @@ func (l *localLog) QueryRecords(ctx context.Context, request storage.QueryRecord
 	// the read operation. Only AppendRecords does this to support its atomicy.
 	ll, err := l.lockers.GetOrCreate(ctx, lid)
 	if err != nil {
-		return nil, fmt.Errorf("could not obtain the log locker for id=%s: %w", lid, err)
+		return nil, false, fmt.Errorf("could not obtain the log locker for id=%s: %w", lid, err)
 	}
 	defer l.lockers.Release(&ll)
 
 	cis, err := l.LMStorage.GetChunks(ctx, lid)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 
 	if len(cis) == 0 {
-		return nil, nil
+		return nil, false, nil
 	}
 
 	var idx int
@@ -176,7 +202,7 @@ func (l *localLog) QueryRecords(ctx context.Context, request storage.QueryRecord
 	if request.StartID != "" {
 		if err := sid.UnmarshalText(cast.StringToByteArray(request.StartID)); err != nil {
 			l.logger.Warnf("could not unmarshal startID=%s: %v", request.StartID, err)
-			return nil, fmt.Errorf("wrong startID=%q: %w", request.StartID, errors.ErrInvalid)
+			return nil, false, fmt.Errorf("wrong startID=%q: %w", request.StartID, errors.ErrInvalid)
 		}
 
 		if request.Descending {
@@ -193,25 +219,33 @@ func (l *localLog) QueryRecords(ctx context.Context, request storage.QueryRecord
 	}
 
 	limit := int(request.Limit)
-	if limit > 10000 {
-		limit = 10000
+	if limit > l.cfg.MaxRecordsLimit {
+		limit = l.cfg.MaxRecordsLimit
 	}
-
+	totalSize := 0
 	res := []*solaris.Record{}
 	for idx >= 0 && idx < len(cis) && limit > len(res) {
 		ci := cis[idx]
-		srecs, err := l.readRecords(ctx, lid, ci, request.Descending, sid, limit-len(res))
+		srecs, err := l.readRecords(ctx, lid, ci, request.Descending, sid, limit-len(res), &totalSize)
 		if err != nil {
-			return nil, err
+			return nil, false, err
 		}
 		res = append(res, srecs...)
 		idx += inc
 		sid = empty
 	}
-	return res, nil
+	return res, len(res) >= limit || totalSize >= l.cfg.MaxBunchSize, nil
 }
 
-func (l *localLog) readRecords(ctx context.Context, lid string, ci ChunkInfo, descending bool, sid ulid.ULID, limit int) ([]*solaris.Record, error) {
+func (l *localLog) readRecords(
+	ctx context.Context,
+	lid string,
+	ci ChunkInfo,
+	descending bool,
+	sid ulid.ULID,
+	limit int,
+	totalSize *int,
+) ([]*solaris.Record, error) {
 	rc, err := l.ChnkProvider.GetOpenedChunk(ctx, ci.ID)
 	if err != nil {
 		return nil, err
@@ -228,15 +262,15 @@ func (l *localLog) readRecords(ctx context.Context, lid string, ci ChunkInfo, de
 	if sid.Compare(empty) != 0 {
 		cr.SetStartID(sid)
 	}
-
 	res := []*solaris.Record{}
-	for cr.HasNext() && len(res) < limit {
+	for cr.HasNext() && len(res) < limit && *totalSize < l.cfg.MaxBunchSize {
 		ur, _ := cr.Next()
 		r := new(solaris.Record)
 		r.ID = ur.ID.String()
 		r.LogID = lid
 		r.Payload = make([]byte, len(ur.UnsafePayload))
 		copy(r.Payload, ur.UnsafePayload)
+		*totalSize += len(ur.UnsafePayload)
 		r.CreatedAt = timestamppb.New(ulid.Time(ur.ID.Time()))
 		res = append(res, r)
 	}

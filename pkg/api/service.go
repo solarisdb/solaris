@@ -21,6 +21,7 @@ import (
 	context2 "github.com/solarisdb/solaris/golibs/context"
 	"github.com/solarisdb/solaris/golibs/errors"
 	"github.com/solarisdb/solaris/golibs/logging"
+	"github.com/solarisdb/solaris/golibs/ulidutils"
 	"github.com/solarisdb/solaris/pkg/storage"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -112,15 +113,14 @@ func (s *Service) QueryRecords(ctx context.Context, request *solaris.QueryRecord
 	}
 
 	if len(logIDs) == 1 {
-		res, err := s.LogStorage.QueryRecords(ctx, storage.QueryRecordsRequest{Condition: request.Condition,
-			LogID: logIDs[0], Descending: request.Descending, StartID: request.StartRecordID, Limit: request.Limit + 1})
+		res, more, err := s.LogStorage.QueryRecords(ctx, storage.QueryRecordsRequest{Condition: request.Condition,
+			LogID: logIDs[0], Descending: request.Descending, StartID: request.StartRecordID, Limit: request.Limit})
 		if err != nil {
 			return nil, errors.GRPCWrap(err)
 		}
 		nextID := ""
-		if int64(len(res)) > request.Limit {
-			nextID = res[len(res)-1].ID
-			res = res[:len(res)-1]
+		if more {
+			nextID = ulidutils.NextID(res[len(res)-1].ID)
 		}
 		return &solaris.QueryRecordsResult{Records: res, NextPageID: nextID}, nil
 	}

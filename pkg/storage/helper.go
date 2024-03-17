@@ -50,11 +50,12 @@ func (l *LogHelper) AppendRecords(ctx context.Context, request *solaris.AppendRe
 	return &solaris.AppendRecordsResult{Added: int64(len(request.Records))}, nil
 }
 
-func (l *LogHelper) QueryRecords(ctx context.Context, request QueryRecordsRequest) ([]*solaris.Record, error) {
+func (l *LogHelper) QueryRecords(ctx context.Context, request QueryRecordsRequest) ([]*solaris.Record, bool, error) {
 	res := []*solaris.Record{}
 	recs := l.m[request.LogID]
+	idx := 0
 	if request.Descending {
-		idx := len(recs) - 1
+		idx = len(recs) - 1
 		if request.StartID != "" {
 			for idx >= 0 && recs[idx].ID > request.StartID {
 				idx--
@@ -66,7 +67,6 @@ func (l *LogHelper) QueryRecords(ctx context.Context, request QueryRecordsReques
 			request.Limit--
 		}
 	} else {
-		idx := 0
 		if request.StartID != "" {
 			for idx < len(recs) && recs[idx].ID < request.StartID {
 				idx++
@@ -78,5 +78,5 @@ func (l *LogHelper) QueryRecords(ctx context.Context, request QueryRecordsReques
 			request.Limit--
 		}
 	}
-	return res, nil
+	return res, idx >= 0 && idx < len(recs), nil
 }

@@ -29,14 +29,16 @@ import (
 type Provider struct {
 	logger logging.Logger
 	dir    string
+	ccfg   Config
 	chunks *lru.ReleasableCache[string, *Chunk]
 }
 
 // NewProvider creates the new Provider instance
-func NewProvider(dir string, maxOpenedChunks int) *Provider {
+func NewProvider(dir string, maxOpenedChunks int, cfg Config) *Provider {
 	p := new(Provider)
 	p.logger = logging.NewLogger("chunkfs.Provider")
 	p.dir = dir
+	p.ccfg = cfg
 	var err error
 	p.chunks, err = lru.NewReleasableCache[string, *Chunk](maxOpenedChunks, p.openChunk, p.closeChunk)
 	if err != nil {
@@ -63,7 +65,7 @@ func (p *Provider) ReleaseChunk(r *lru.Releasable[*Chunk]) {
 }
 
 func (p *Provider) openChunk(ctx context.Context, cID string) (*Chunk, error) {
-	c := NewChunk(p.getFileNameByID(cID), cID)
+	c := NewChunk(p.getFileNameByID(cID), cID, p.ccfg)
 	p.logger.Debugf("opening chunk %v", c)
 	err := c.Open(false)
 	if errors.Is(err, errCorrupted) {
