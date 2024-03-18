@@ -13,14 +13,14 @@ import (
 )
 
 func TestProvider_closed(t *testing.T) {
-	p := NewProvider("", 1)
+	p := NewProvider("", 1, GetDefaultConfig())
 	p.Close()
 	_, err := p.GetOpenedChunk(context2.Background(), "la la")
 	assert.True(t, errors.Is(err, errors.ErrClosed))
 }
 
 func TestProvider_newPanics(t *testing.T) {
-	assert.Panics(t, func() { NewProvider("", 0) })
+	assert.Panics(t, func() { NewProvider("", 0, GetDefaultConfig()) })
 }
 
 func TestProvider_lifeCycle(t *testing.T) {
@@ -28,7 +28,7 @@ func TestProvider_lifeCycle(t *testing.T) {
 	assert.Nil(t, err)
 	defer os.RemoveAll(dir)
 
-	p := NewProvider(dir, 1)
+	p := NewProvider(dir, 1, GetDefaultConfig())
 	rc, err := p.GetOpenedChunk(context2.Background(), "lala")
 	assert.Nil(t, err)
 	p.ReleaseChunk(&rc)
@@ -69,7 +69,7 @@ func TestProvider_contextClosed(t *testing.T) {
 	assert.Nil(t, err)
 	defer os.RemoveAll(dir)
 
-	p := NewProvider(dir, 1)
+	p := NewProvider(dir, 1, GetDefaultConfig())
 	defer p.Close()
 
 	c, err := p.GetOpenedChunk(context2.Background(), "lala")

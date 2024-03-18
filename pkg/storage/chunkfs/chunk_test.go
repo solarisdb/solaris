@@ -49,12 +49,10 @@ func TestChunk_Open(t *testing.T) {
 	assert.Nil(t, err)
 	defer os.RemoveAll(dir)
 
-	cfg.newSize = files.BlockSize
-	cfg.maxChunkSize = 10 * files.BlockSize
-	cfg.maxGrowIncreaseSize = 2 * files.BlockSize
+	cfg := Config{NewSize: files.BlockSize, MaxChunkSize: 10 * files.BlockSize, MaxGrowIncreaseSize: 2 * files.BlockSize}
 
 	fn := filepath.Join(dir, "c1")
-	c := NewChunk(fn, "c1")
+	c := NewChunk(fn, "c1", cfg)
 	_, err = c.AppendRecords(generateRecords(1, 1))
 	assert.NotNil(t, err)
 	_, err = c.OpenChunkReader(false)
@@ -62,7 +60,7 @@ func TestChunk_Open(t *testing.T) {
 	assert.Nil(t, c.Open(true))
 	fi, err := os.Stat(fn)
 	assert.Nil(t, err)
-	assert.Equal(t, cfg.newSize, fi.Size())
+	assert.Equal(t, cfg.NewSize, fi.Size())
 	assert.Nil(t, c.Close())
 	assert.Nil(t, c.Open(false))
 
@@ -79,12 +77,10 @@ func TestChunk_SimpleAppend(t *testing.T) {
 	assert.Nil(t, err)
 	defer os.RemoveAll(dir)
 
-	cfg.newSize = files.BlockSize
-	cfg.maxChunkSize = 10 * files.BlockSize
-	cfg.maxGrowIncreaseSize = 2 * files.BlockSize
+	cfg := Config{NewSize: files.BlockSize, MaxChunkSize: 10 * files.BlockSize, MaxGrowIncreaseSize: 2 * files.BlockSize}
 
 	fn := filepath.Join(dir, "c1")
-	c := NewChunk(fn, "c1")
+	c := NewChunk(fn, "c1", cfg)
 	assert.Nil(t, c.Open(false))
 	recs := generateRecords(3, 10)
 	arr, err := c.AppendRecords(recs)
@@ -122,12 +118,10 @@ func TestChunk_AppendGrowth(t *testing.T) {
 	assert.Nil(t, err)
 	defer os.RemoveAll(dir)
 
-	cfg.newSize = files.BlockSize
-	cfg.maxChunkSize = 10 * files.BlockSize
-	cfg.maxGrowIncreaseSize = 1 * files.BlockSize
+	cfg := Config{NewSize: files.BlockSize, MaxChunkSize: 10 * files.BlockSize, MaxGrowIncreaseSize: files.BlockSize}
 
 	fn := filepath.Join(dir, "c1")
-	c := NewChunk(fn, "c1")
+	c := NewChunk(fn, "c1", cfg)
 	assert.Nil(t, c.Open(false))
 	recs := generateRecords(3, 10)
 	arr, err := c.AppendRecords(recs)
@@ -137,7 +131,7 @@ func TestChunk_AppendGrowth(t *testing.T) {
 
 	fi, err := os.Stat(fn)
 	assert.Nil(t, err)
-	assert.Equal(t, cfg.newSize, fi.Size())
+	assert.Equal(t, cfg.NewSize, fi.Size())
 
 	recs2 := generateRecords(100, 30)
 	recs = append(recs, recs2...)
@@ -145,13 +139,13 @@ func TestChunk_AppendGrowth(t *testing.T) {
 	assert.Nil(t, err)
 	fi, err = os.Stat(fn)
 	assert.Nil(t, err)
-	assert.Equal(t, 2*cfg.newSize, fi.Size())
+	assert.Equal(t, 2*cfg.NewSize, fi.Size())
 
 	_, err = c.AppendRecords(recs2)
 	assert.Nil(t, err)
 	fi, err = os.Stat(fn)
 	assert.Nil(t, err)
-	assert.Equal(t, 3*cfg.newSize, fi.Size())
+	assert.Equal(t, 3*cfg.NewSize, fi.Size())
 	recs = append(recs, recs2...)
 
 	cr1, err := c.OpenChunkReader(false)
@@ -170,7 +164,7 @@ func TestChunk_AppendGrowth(t *testing.T) {
 	assert.Nil(t, err)
 	fi, err = os.Stat(fn)
 	assert.Nil(t, err)
-	assert.Equal(t, 4*cfg.newSize, fi.Size())
+	assert.Equal(t, 4*cfg.NewSize, fi.Size())
 	recs = append(recs, recs2...)
 
 	before := c.freeOffset
@@ -192,12 +186,10 @@ func TestChunk_AppendGrowth2(t *testing.T) {
 	assert.Nil(t, err)
 	defer os.RemoveAll(dir)
 
-	cfg.newSize = files.BlockSize
-	cfg.maxChunkSize = 5 * files.BlockSize
-	cfg.maxGrowIncreaseSize = 1 * files.BlockSize
+	cfg := Config{NewSize: files.BlockSize, MaxChunkSize: 5 * files.BlockSize, MaxGrowIncreaseSize: files.BlockSize}
 
 	fn := filepath.Join(dir, "c1")
-	c := NewChunk(fn, "c1")
+	c := NewChunk(fn, "c1", cfg)
 	assert.Nil(t, c.Open(false))
 	defer c.Close()
 	recs := generateRecords(3000, 512)

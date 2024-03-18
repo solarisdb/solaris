@@ -59,8 +59,9 @@ type (
 	Log interface {
 		// AppendRecords allows to insert records into the log by its ID
 		AppendRecords(ctx context.Context, request *solaris.AppendRecordsRequest) (*solaris.AppendRecordsResult, error)
-		// QueryRecords allows to retrieve records by the request
-		QueryRecords(ctx context.Context, request QueryRecordsRequest) ([]*solaris.Record, error)
+		// QueryRecords allows to retrieve records by the request. The function returns the selected records and the flag,
+		// that more records potentially available for the read
+		QueryRecords(ctx context.Context, request QueryRecordsRequest) ([]*solaris.Record, bool, error)
 	}
 
 	QueryRecordsRequest struct {
