@@ -43,7 +43,7 @@ func NewCachedStorage(storage LogsChunksMetaStorage) *CachedStorage {
 		sort.Slice(cis, func(i, j int) bool {
 			return cis[i].ID < cis[j].ID
 		})
-		return cis, err
+		return cis, nil
 	}, nil)
 	return cache
 }
