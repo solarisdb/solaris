@@ -7,23 +7,23 @@ import (
 	"github.com/solarisdb/solaris/golibs/container/lru"
 	"github.com/solarisdb/solaris/pkg/storage"
 	"github.com/solarisdb/solaris/pkg/storage/logfs"
+	"sort"
 )
 
 type (
 	// LogsChunksMetaStorage combines storage.Logs and
 	// logfs.LogsMetaStorage interfaces
 	LogsChunksMetaStorage interface {
-		logfs.LogsMetaStorage
 		storage.Logs
+		logfs.LogsMetaStorage
 	}
 
 	// CachedStorage wraps LogsChunksMetaStorage
 	// with caches for logs and chunks
 	CachedStorage struct {
-		storage        LogsChunksMetaStorage
-		logsCache      *lru.Cache[string, *solaris.Log]
-		chunksCache    *lru.Cache[string, []logfs.ChunkInfo]
-		lastChunkCache *lru.Cache[string, logfs.ChunkInfo]
+		storage     LogsChunksMetaStorage
+		logsCache   *lru.Cache[string, *solaris.Log]
+		chunksCache *lru.Cache[string, []logfs.ChunkInfo]
 	}
 )
 
@@ -36,10 +36,14 @@ func NewCachedStorage(storage LogsChunksMetaStorage) *CachedStorage {
 		return storage.GetLogByID(context.Background(), logID)
 	}, nil)
 	cache.chunksCache, _ = lru.NewCache(cacheSize, func(logID string) ([]logfs.ChunkInfo, error) {
-		return storage.GetChunks(context.Background(), logID)
-	}, nil)
-	cache.lastChunkCache, _ = lru.NewCache(cacheSize, func(logID string) (logfs.ChunkInfo, error) {
-		return storage.GetLastChunk(context.Background(), logID)
+		cis, err := storage.GetChunks(context.Background(), logID)
+		if err != nil {
+			return nil, err
+		}
+		sort.Slice(cis, func(i, j int) bool {
+			return cis[i].ID < cis[j].ID
+		})
+		return cis, err
 	}, nil)
 	return cache
 }
@@ -93,18 +97,20 @@ func (s *CachedStorage) DeleteLogs(ctx context.Context, request storage.DeleteLo
 	for _, id := range dr.DeletedIDs {
 		s.logsCache.Remove(id)
 		s.chunksCache.Remove(id)
-		s.lastChunkCache.Remove(id)
 	}
 	return dr, nil
 }
 
 // GetLastChunk implements logfs.LogsMetaStorage
 func (s *CachedStorage) GetLastChunk(ctx context.Context, logID string) (logfs.ChunkInfo, error) {
-	lci, err := s.lastChunkCache.GetOrCreate(logID)
+	cis, err := s.chunksCache.GetOrCreate(logID)
 	if err != nil {
 		return logfs.ChunkInfo{}, err
 	}
-	return lci, nil
+	if len(cis) == 0 {
+		return logfs.ChunkInfo{}, nil
+	}
+	return cis[len(cis)-1], nil
 }
 
 // GetChunks implements logfs.LogsMetaStorage
