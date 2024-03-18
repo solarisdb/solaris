@@ -30,14 +30,21 @@ type (
 		// MetaDBFilePath specifies logs and chunks metadata is stored,
 		// if left empty, in-memory storage is used
 		MetaDBFilePath string
+		// LocalDBFilePath specifies where the logs data is stored
+		LocalDBFilePath string
+		// MaxOpenedLogFiles allows to control number of files opened at a time to work with the solaris data
+		// Increasing the number allows to increase the system performance for accessing to random group of logs
+		MaxOpenedLogFiles int
 	}
 )
 
 // getDefaultConfig returns the default server config
 func getDefaultConfig() *Config {
 	return &Config{
-		GrpcTransport:  transport.GetDefaultGRPCConfig(),
-		MetaDBFilePath: ":memory:",
+		GrpcTransport:     transport.GetDefaultGRPCConfig(),
+		MetaDBFilePath:    ":memory:",
+		LocalDBFilePath:   "slogs",
+		MaxOpenedLogFiles: 100,
 	}
 }
 

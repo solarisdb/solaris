@@ -16,9 +16,14 @@ package server
 
 import (
 	"context"
+	"fmt"
+	"github.com/solarisdb/solaris/golibs/errors"
+	"github.com/solarisdb/solaris/golibs/files"
 	"github.com/solarisdb/solaris/golibs/logging"
 	"github.com/solarisdb/solaris/pkg/grpc"
 	"github.com/solarisdb/solaris/pkg/storage/buntdb"
+	"github.com/solarisdb/solaris/pkg/storage/chunkfs"
+	"github.com/solarisdb/solaris/pkg/storage/logfs"
 	"github.com/solarisdb/solaris/pkg/version"
 	"google.golang.org/grpc/health"
 	"google.golang.org/grpc/health/grpc_health_v1"
@@ -36,6 +41,10 @@ func Run(ctx context.Context, cfg *Config) error {
 	log.Infof(spew.Sprint(cfg))
 	defer log.Infof("server is stopped")
 
+	if err := checkConfig(cfg); err != nil {
+		return err
+	}
+
 	// gRPC server
 	var grpcRegF grpc.RegisterF = func(gs *ggrpc.Server) error {
 		grpc_health_v1.RegisterHealthServer(gs, health.NewServer())
@@ -45,9 +54,18 @@ func Run(ctx context.Context, cfg *Config) error {
 	inj := linker.New()
 	inj.Register(linker.Component{Name: "", Value: grpc.NewServer(grpc.Config{Transport: *cfg.GrpcTransport, RegisterEndpoints: grpcRegF})})
 	inj.Register(linker.Component{Name: "", Value: buntdb.NewStorage(buntdb.Config{DBFilePath: cfg.MetaDBFilePath})})
+	inj.Register(linker.Component{Name: "", Value: chunkfs.NewProvider(cfg.LocalDBFilePath, cfg.MaxOpenedLogFiles, chunkfs.GetDefaultConfig())})
+	inj.Register(linker.Component{Name: "", Value: logfs.NewLocalLog(logfs.GetDefaultConfig())})
 
 	inj.Init(ctx)
 	<-ctx.Done()
 	inj.Shutdown()
 	return nil
+}
+
+func checkConfig(cfg *Config) error {
+	if cfg.LocalDBFilePath == "" {
+		return fmt.Errorf("LocalDBFilePath must be provided: %w", errors.ErrInvalid)
+	}
+	return files.EnsureDirExists(cfg.LocalDBFilePath)
 }
