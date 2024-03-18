@@ -163,9 +163,9 @@ func (s *Storage) QueryLogs(ctx context.Context, qr storage.QueryLogsRequest) (*
 }
 
 // DeleteLogs implements storage.Logs
-func (s *Storage) DeleteLogs(ctx context.Context, req storage.DeleteLogsRequest) (*solaris.CountResult, error) {
+func (s *Storage) DeleteLogs(ctx context.Context, req storage.DeleteLogsRequest) (*solaris.DeleteLogsResult, error) {
 	var (
-		dRes = &solaris.CountResult{}
+		dRes = &solaris.DeleteLogsResult{}
 		err  error
 	)
 
@@ -183,11 +183,11 @@ func (s *Storage) DeleteLogs(ctx context.Context, req storage.DeleteLogsRequest)
 	return dRes, nil
 }
 
-func (s *Storage) deleteLogsByIDs(ctx context.Context, req storage.DeleteLogsRequest) (*solaris.CountResult, error) {
+func (s *Storage) deleteLogsByIDs(ctx context.Context, req storage.DeleteLogsRequest) (*solaris.DeleteLogsResult, error) {
 	tx := mustBeginTx(s.db, true)
 	defer mustRollback(tx)
 
-	var deleted int64
+	var deletedIDs []string
 	for _, id := range slices.Clone(req.IDs) {
 		if ctx.Err() != nil {
 			return nil, fmt.Errorf("context error: %w", ctx.Err())
@@ -201,12 +201,12 @@ func (s *Storage) deleteLogsByIDs(ctx context.Context, req storage.DeleteLogsReq
 				return nil, fmt.Errorf("deleteLog(ID=%s) failed: %w", id, err)
 			}
 		}
-		deleted++
+		deletedIDs = append(deletedIDs, id)
 	}
 
 	mustCommit(tx)
-	return &solaris.CountResult{
-		Total: deleted,
+	return &solaris.DeleteLogsResult{
+		DeletedIDs: deletedIDs,
 	}, nil
 }
 
@@ -254,7 +254,7 @@ func (s *Storage) markLogDeleted(tx *buntdb.Tx, logID string) error {
 	return nil
 }
 
-func (s *Storage) deleteLogsByCondition(ctx context.Context, req storage.DeleteLogsRequest) (*solaris.CountResult, error) {
+func (s *Storage) deleteLogsByCondition(ctx context.Context, req storage.DeleteLogsRequest) (*solaris.DeleteLogsResult, error) {
 	var logIDs []string
 	qRes, err := s.queryLogsByCondition(ctx, storage.QueryLogsRequest{Condition: req.Condition, Limit: 1000}, req.MarkOnly)
 	for err == nil && len(qRes.Logs) > 0 {

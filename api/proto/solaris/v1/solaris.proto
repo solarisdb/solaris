@@ -14,7 +14,7 @@ service Service {
   // QueryLogs requests list of logs by the query request ordered by the log IDs ascending order
   rpc QueryLogs(QueryLogsRequest) returns (QueryLogsResult);
   // DeleteLogs removes one or more logs
-  rpc DeleteLogs(DeleteLogsRequest) returns (CountResult);
+  rpc DeleteLogs(DeleteLogsRequest) returns (DeleteLogsResult);
   // AppendRecords appends a bunch of records to the log
   rpc AppendRecords(AppendRecordsRequest) returns (AppendRecordsResult);
   // QueryRecords read records from one or many logs, merging them together into the result set
@@ -87,6 +87,11 @@ message QueryLogsResult {
 // DeleteLogsRequest specifies the condition for the deleted logs
 message DeleteLogsRequest {
   string condition = 1;
+}
+
+// DeleteLogsResult describes the response for DeleteLogsRequest
+message DeleteLogsResult {
+  repeated string deletedIDs = 1;
 }
 
 // CountResult returns a counted number of an operation
