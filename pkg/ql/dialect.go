@@ -17,6 +17,8 @@ const (
 	PfComparable = 1 << 3
 	// PfInLike the IN or LIKE operations are allowed for the param
 	PfInLike = 1 << 4
+	// PfGreaterLess the parameter can be compared with < or > only
+	PfGreaterLess = 1 << 5
 )
 
 type (
@@ -28,12 +30,6 @@ type (
 
 var (
 	LogsCondDialect = map[string]ParamDialect[*solaris.Log, any]{
-		NumberParamID: { // numbers are rvalues only
-			Flags: PfRValue | PfComparable,
-			Value: func(p *Param, log *solaris.Log) (any, error) {
-				return p.Const.Value(), nil
-			},
-		},
 		StringParamID: { // strings are rvalues only
 			Flags: PfRValue | PfComparable,
 			Value: func(p *Param, log *solaris.Log) (any, error) {
@@ -50,7 +46,7 @@ var (
 				return strArr, nil
 			},
 		},
-		"id": {
+		"logID": {
 			Flags: PfLValue | PfComparable | PfInLike,
 			Value: func(p *Param, log *solaris.Log) (any, error) {
 				return log.ID, nil
@@ -75,4 +71,31 @@ var (
 			},
 		},
 	}
+
+	logCondDialect = map[string]ParamDialect[*solaris.Record, any]{
+		StringParamID: { // strings are rvalues only
+			Flags: PfRValue | PfComparable,
+			Value: func(p *Param, r *solaris.Record) (any, error) {
+				return p.Const.Value(), nil
+			},
+		},
+		ArrayParamID: { // arrays are rvalues only
+			Flags: PfRValue,
+			Value: func(p *Param, r *solaris.Record) (any, error) {
+				var strArr []string
+				for _, elem := range p.Array {
+					strArr = append(strArr, elem.Value())
+				}
+				return strArr, nil
+			},
+		},
+		"ctime": {
+			Flags: PfLValue | PfComparable | PfInLike,
+			Value: func(p *Param, r *solaris.Record) (any, error) {
+				return r.CreatedAt.AsTime(), nil
+			},
+		},
+	}
+
+	LogCondEval = &Evaluator[*solaris.Record]{Dialect: logCondDialect}
 )

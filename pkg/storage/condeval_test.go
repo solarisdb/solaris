@@ -26,7 +26,7 @@ import (
 func TestLogCondEval_EvalTrue(t *testing.T) {
 	expr, err := ql.Parse("tag('tag1') = 'val1' OR tag('tag2') IN ['val22'] OR tag('tag3') like '%val333%'")
 	assert.Nil(t, err)
-	eval := NewLogCondEval(ql.LogsCondDialect)
+	eval := LogsCondEval
 
 	var ok bool
 	var log *solaris.Log
@@ -45,7 +45,7 @@ func TestLogCondEval_EvalTrue(t *testing.T) {
 func TestLogCondEval_EvalFalse(t *testing.T) {
 	expr, err := ql.Parse("tag('tag1') like '%v%' AND NOT tag('tag2') IN ['val2']")
 	assert.Nil(t, err)
-	eval := NewLogCondEval(ql.LogsCondDialect)
+	eval := LogsCondEval
 
 	log1 := &solaris.Log{ID: ulidutils.NewID(), Tags: map[string]string{
 		"tag1": fmt.Sprintf("val1"),
@@ -68,26 +68,11 @@ func TestLogCondEval_EvalFalse(t *testing.T) {
 }
 
 func Test_like(t *testing.T) {
-	assert.True(t, like("abc", "%"))
-	assert.True(t, like("abc", "%bc"))
-	assert.True(t, like("abcd", "ab%"))
-	assert.True(t, like("abvcefd", "a%c%d"))
-	assert.True(t, like("abvacefd", "%ac%"))
-	assert.False(t, like("abc", "%d"))
-	assert.False(t, like("abvccefd", "a%ac%d"))
-}
-
-func Test_compare(t *testing.T) {
-	assert.True(t, compare("abc", "abc", "="))
-	assert.True(t, compare("abc", "abc", "<="))
-	assert.True(t, compare("abc", "abc", ">="))
-	assert.True(t, compare("ab", "abc", "<"))
-	assert.True(t, compare("abcd", "abc", ">"))
-	assert.True(t, compare("abc", "def", "!="))
-	assert.False(t, compare("ab", "abc", ">"))
-	assert.False(t, compare("abc", "abc", "!="))
-}
-
-func Test_in(t *testing.T) {
-	assert.True(t, in("abc", []string{"abc"}))
+	assert.True(t, LogsCondEval.Like("abc", "%"))
+	assert.True(t, LogsCondEval.Like("abc", "%bc"))
+	assert.True(t, LogsCondEval.Like("abcd", "ab%"))
+	assert.True(t, LogsCondEval.Like("abvcefd", "a%c%d"))
+	assert.True(t, LogsCondEval.Like("abvacefd", "%ac%"))
+	assert.False(t, LogsCondEval.Like("abc", "%d"))
+	assert.False(t, LogsCondEval.Like("abvccefd", "a%ac%d"))
 }

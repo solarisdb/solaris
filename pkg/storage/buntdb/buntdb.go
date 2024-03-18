@@ -31,7 +31,6 @@ type (
 	Storage struct {
 		cfg    *Config
 		db     *buntdb.DB
-		eval   *storage.LogCondEval
 		logger logging.Logger
 	}
 
@@ -47,7 +46,7 @@ type (
 
 // NewStorage creates new logs meta storage based on BuntDB
 func NewStorage(cfg Config) *Storage {
-	return &Storage{cfg: &cfg, eval: storage.NewLogCondEval(ql.LogsCondDialect)}
+	return &Storage{cfg: &cfg}
 }
 
 // Init implements linker.Initializer
@@ -350,7 +349,7 @@ func (s *Storage) queryLogsByCondition(ctx context.Context, qr storage.QueryLogs
 		if skipMarkedDeleted && le.Deleted {
 			return true
 		}
-		ok, evalErr := s.eval.Eval(le.Log, expr)
+		ok, evalErr := storage.LogsCondEval.Eval(le.Log, expr)
 		if evalErr != nil {
 			iterErr = fmt.Errorf("condition=%q eval error: %w", qr.Condition, evalErr)
 			return false
