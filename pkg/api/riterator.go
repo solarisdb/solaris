@@ -92,7 +92,7 @@ func (ri *rIterator) fillBuf() error {
 	q.Limit = min(100, ri.baseQuery.Limit)
 	q.StartID = ri.nextID
 	ri.buf = nil
-	mr, err := ri.ls.QueryRecords(ri.ctx, q)
+	mr, _, err := ri.ls.QueryRecords(ri.ctx, q)
 	if err != nil {
 		ri.cf(err) // cancel the context ctx
 		ri.eof = true
