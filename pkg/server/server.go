@@ -55,7 +55,7 @@ func Run(ctx context.Context, cfg *Config) error {
 	inj := linker.New()
 	inj.Register(linker.Component{Name: "", Value: grpc.NewServer(grpc.Config{Transport: *cfg.GrpcTransport, RegisterEndpoints: grpcRegF})})
 	inj.Register(linker.Component{Name: "", Value: cache.NewCachedStorage(buntdb.NewStorage(buntdb.Config{DBFilePath: cfg.MetaDBFilePath}))})
-	inj.Register(linker.Component{Name: "", Value: buntdb.NewStorage(buntdb.Config{DBFilePath: cfg.MetaDBFilePath})})
+	inj.Register(linker.Component{Name: "", Value: chunkfs.NewProvider(cfg.LocalDBFilePath, cfg.MaxOpenedLogFiles, chunkfs.GetDefaultConfig())})
 	inj.Register(linker.Component{Name: "", Value: logfs.NewLocalLog(logfs.GetDefaultConfig())})
 
 	inj.Init(ctx)
