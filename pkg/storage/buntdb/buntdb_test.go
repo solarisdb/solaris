@@ -137,7 +137,7 @@ func TestStorage_DeleteLogsByCondition(t *testing.T) {
 
 	dr, err := s.DeleteLogs(ctx, storage.DeleteLogsRequest{Condition: "tag('tag3') = 'val4' AND tag('tag4') like 'v%'"})
 	assert.Nil(t, err)
-	assert.Equal(t, int64(1), dr.Total)
+	assert.Equal(t, 1, len(dr.DeletedIDs))
 
 }
 
@@ -152,22 +152,22 @@ func TestStorage_DeleteLogsByConditionMarkOnly(t *testing.T) {
 
 	dr, err := s.DeleteLogs(ctx, storage.DeleteLogsRequest{Condition: "tag('tag1') = 'val1'", MarkOnly: true})
 	assert.Nil(t, err)
-	assert.Equal(t, int64(1), dr.Total)
+	assert.Equal(t, 1, len(dr.DeletedIDs))
 
 	dr, err = s.DeleteLogs(ctx, storage.DeleteLogsRequest{Condition: "tag('tag1') = 'val1'", MarkOnly: true})
 	assert.Nil(t, err)
-	assert.Equal(t, int64(0), dr.Total)
+	assert.Equal(t, 0, len(dr.DeletedIDs))
 
 	log, err = s.GetLogByID(ctx, log.ID)
 	assert.ErrorIs(t, err, errors.ErrNotExist)
 
 	dr, err = s.DeleteLogs(ctx, storage.DeleteLogsRequest{Condition: "tag('tag1') = 'val1'"})
 	assert.Nil(t, err)
-	assert.Equal(t, int64(1), dr.Total)
+	assert.Equal(t, 1, len(dr.DeletedIDs))
 
 	dr, err = s.DeleteLogs(ctx, storage.DeleteLogsRequest{Condition: "tag('tag1') = 'val1'"})
 	assert.Nil(t, err)
-	assert.Equal(t, int64(0), dr.Total)
+	assert.Equal(t, 0, len(dr.DeletedIDs))
 }
 
 func TestStorage_DeleteLogsByIDs(t *testing.T) {
@@ -189,7 +189,7 @@ func TestStorage_DeleteLogsByIDs(t *testing.T) {
 
 	dr, err := s.DeleteLogs(ctx, storage.DeleteLogsRequest{IDs: []string{log2.ID, log3.ID}})
 	assert.Nil(t, err)
-	assert.Equal(t, int64(2), dr.Total)
+	assert.Equal(t, 2, len(dr.DeletedIDs))
 }
 
 func TestStorage_DeleteLogByIDsWithChunks(t *testing.T) {
@@ -221,9 +221,9 @@ func TestStorage_DeleteLogByIDsWithChunks(t *testing.T) {
 	assert.Nil(t, err)
 	assert.Equal(t, len(cis2), len(cis4))
 
-	cnt, err := s.DeleteLogs(ctx, storage.DeleteLogsRequest{IDs: []string{log2.ID}})
+	dr, err := s.DeleteLogs(ctx, storage.DeleteLogsRequest{IDs: []string{log2.ID}})
 	assert.Nil(t, err)
-	assert.Equal(t, int64(1), cnt.Total)
+	assert.Equal(t, 1, len(dr.DeletedIDs))
 
 	cis3, err = s.GetChunks(ctx, log1.ID)
 	assert.Nil(t, err)
@@ -325,9 +325,9 @@ func TestStorage_DeleteLogChunks(t *testing.T) {
 	err = s.UpsertChunkInfos(ctx, log2.ID, cis2)
 	assert.Nil(t, err)
 
-	cnt, err := s.DeleteLogs(ctx, storage.DeleteLogsRequest{IDs: []string{log2.ID}})
+	dr, err := s.DeleteLogs(ctx, storage.DeleteLogsRequest{IDs: []string{log2.ID}})
 	assert.Nil(t, err)
-	assert.Equal(t, int64(1), cnt.Total)
+	assert.Equal(t, 1, len(dr.DeletedIDs))
 }
 
 func BenchmarkCache_GetLastChunk(b *testing.B) {

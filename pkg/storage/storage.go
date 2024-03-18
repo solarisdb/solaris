@@ -32,7 +32,7 @@ type (
 		// QueryLogs returns the list of Log objects matched to the query request
 		QueryLogs(ctx context.Context, qr QueryLogsRequest) (*solaris.QueryLogsResult, error)
 		// DeleteLogs allows to either mark or delete logs permanently
-		DeleteLogs(ctx context.Context, request DeleteLogsRequest) (*solaris.CountResult, error)
+		DeleteLogs(ctx context.Context, request DeleteLogsRequest) (*solaris.DeleteLogsResult, error)
 	}
 
 	// QueryLogsRequest is used for selecting list of known logs

@@ -72,13 +72,13 @@ func (s *Service) QueryLogs(ctx context.Context, request *solaris.QueryLogsReque
 	return res, errors.GRPCWrap(err)
 }
 
-func (s *Service) DeleteLogs(ctx context.Context, request *solaris.DeleteLogsRequest) (*solaris.CountResult, error) {
+func (s *Service) DeleteLogs(ctx context.Context, request *solaris.DeleteLogsRequest) (*solaris.DeleteLogsResult, error) {
 	s.logger.Infof("delete logs: %v", request)
 	res, err := s.LogsStorage.DeleteLogs(ctx, storage.DeleteLogsRequest{Condition: request.Condition, MarkOnly: true})
 	if err != nil {
 		s.logger.Warnf("could not delete logs for the request=%v: %v", err)
 	} else {
-		s.logger.Infof("%d records marked for delete for request=%v", res.Total, request)
+		s.logger.Infof("%d records marked for delete for request=%v", len(res.DeletedIDs), request)
 	}
 	return res, errors.GRPCWrap(err)
 }

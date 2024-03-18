@@ -19,6 +19,7 @@ import (
 	"github.com/solarisdb/solaris/golibs/logging"
 	"github.com/solarisdb/solaris/pkg/grpc"
 	"github.com/solarisdb/solaris/pkg/storage/buntdb"
+	"github.com/solarisdb/solaris/pkg/storage/cache"
 	"github.com/solarisdb/solaris/pkg/version"
 	"google.golang.org/grpc/health"
 	"google.golang.org/grpc/health/grpc_health_v1"
@@ -44,7 +45,7 @@ func Run(ctx context.Context, cfg *Config) error {
 
 	inj := linker.New()
 	inj.Register(linker.Component{Name: "", Value: grpc.NewServer(grpc.Config{Transport: *cfg.GrpcTransport, RegisterEndpoints: grpcRegF})})
-	inj.Register(linker.Component{Name: "", Value: buntdb.NewStorage(buntdb.Config{DBFilePath: cfg.MetaDBFilePath})})
+	inj.Register(linker.Component{Name: "", Value: cache.NewCachedStorage(buntdb.NewStorage(buntdb.Config{DBFilePath: cfg.MetaDBFilePath}))})
 
 	inj.Init(ctx)
 	<-ctx.Done()
