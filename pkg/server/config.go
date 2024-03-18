@@ -27,13 +27,17 @@ type (
 	Config struct {
 		// GrpcTransport specifies grpc transport configuration
 		GrpcTransport *transport.Config
+		// MetaDBFilePath specifies logs and chunks metadata is stored,
+		// if left empty, in-memory storage is used
+		MetaDBFilePath string
 	}
 )
 
 // getDefaultConfig returns the default server config
 func getDefaultConfig() *Config {
 	return &Config{
-		GrpcTransport: transport.GetDefaultGRPCConfig(),
+		GrpcTransport:  transport.GetDefaultGRPCConfig(),
+		MetaDBFilePath: ":memory:",
 	}
 }
 

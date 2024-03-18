@@ -69,6 +69,13 @@ type (
 	}
 )
 
+const (
+	// ChunkMinID defines the lower boundary for chunk ID (exclusive)
+	ChunkMinID = ""
+	// ChunkMaxID defines the upper boundary for chunk ID (exclusive)
+	ChunkMaxID = "~"
+)
+
 var _ storage.Log = (*localLog)(nil)
 
 // NewLocalLog creates the new localLog object for the cfg provided
