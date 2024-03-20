@@ -20,7 +20,7 @@ import (
 
 type (
 	// Map implements a map with an mapIterator capability. The mapIterator allows considering elements from start
-	// to end in the order of the elements added into the map. It is safe to remove and add new elements into
+	// to end in the order of the elements were added into the map. It is safe to remove and add new elements into
 	// the map while an iterator exists, it will support the order the elements were added into the map
 	Map[K comparable, V any] struct {
 		vals map[K]*rlItem[K, V]
@@ -29,6 +29,7 @@ type (
 		pool sync.Pool
 	}
 
+	// MapEntry implements a record in the Map, which contains Key and the Value for the record
 	MapEntry[K comparable, V any] struct {
 		Key   K
 		Value V
@@ -209,8 +210,8 @@ func (it *mapIterator[K, V]) HasNext() bool {
 // Next returns the next element and shifts the iterator to next one if it exists.
 // This function may return default values for K and V types, if the Next element does
 // not exist.
-// The imparity may be observed between HasNext() and Next() functions results if the
-// element the iterator was pointing to was the removed in between this 2 calls. This case the
+// An imparity may be observed between HasNext() and Next() functions results if the
+// element the iterator was pointing to was removed in between this 2 calls. This case the
 // HasNext() will return true, but the Next() will returns default values because the element
 // is deleted.
 func (it *mapIterator[K, V]) Next() (MapEntry[K, V], bool) {

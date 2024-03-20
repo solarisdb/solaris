@@ -54,8 +54,11 @@ func TestGetFist(t *testing.T) {
 }
 
 func TestKeys(t *testing.T) {
-	m := map[string]string{"a": "bb", "cc": "dd"}
+	var m map[string]string
 	ks := Keys(m)
+	assert.True(t, len(ks) == 0)
+	m = map[string]string{"a": "bb", "cc": "dd"}
+	ks = Keys(m)
 	sort.Strings(ks)
 	assert.Equal(t, []string{"a", "cc"}, ks)
 	assert.Nil(t, Keys(map[int]int{}))

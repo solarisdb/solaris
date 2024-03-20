@@ -15,6 +15,7 @@
 package ql
 
 import (
+	"github.com/solarisdb/solaris/golibs/cast"
 	"github.com/stretchr/testify/assert"
 	"testing"
 )
@@ -24,14 +25,14 @@ func TestParseParam(t *testing.T) {
 	assert.Nil(t, err)
 
 	cond := expr.Or[0].And[0].Cond
-	assert.Equal(t, float32(1234.0), cond.FirstParam.Const.Number)
+	assert.Equal(t, float32(1234.0), *cond.FirstParam.Const.Number)
 	assert.Equal(t, NumberParamID, cond.FirstParam.ID())
 
 	expr, err = Parse("'1234'")
 	assert.Nil(t, err)
 
 	cond = expr.Or[0].And[0].Cond
-	assert.Equal(t, "1234", cond.FirstParam.Const.String)
+	assert.Equal(t, "1234", *cond.FirstParam.Const.String)
 	assert.Equal(t, StringParamID, cond.FirstParam.ID())
 
 	expr, err = Parse("lala")
@@ -52,7 +53,7 @@ func TestParseParam(t *testing.T) {
 	assert.Nil(t, err)
 
 	cond = expr.Or[0].And[0].Cond
-	assert.Equal(t, Function{Name: "lala", Params: []*Param{{Const: &Const{Number: float32(1234)}}}}, *cond.FirstParam.Function)
+	assert.Equal(t, Function{Name: "lala", Params: []*Param{{Const: &Const{Number: cast.Ptr(float32(1234))}}}}, *cond.FirstParam.Function)
 	assert.Equal(t, "lala", cond.FirstParam.ID())
 
 	_, err = Parse("lala ( 1234,hhh)")
@@ -66,7 +67,7 @@ func TestParseCondition(t *testing.T) {
 	assert.Nil(t, err)
 
 	cond := expr.Or[0].And[0].Cond
-	assert.Equal(t, float32(1234.0), cond.FirstParam.Const.Number)
+	assert.Equal(t, float32(1234.0), *cond.FirstParam.Const.Number)
 	assert.Nil(t, expr.Or[0].And[0].Cond.SecondParam)
 
 	expr, err = Parse("f1() != f2('asdf')")

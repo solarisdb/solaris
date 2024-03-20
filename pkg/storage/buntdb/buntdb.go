@@ -31,7 +31,6 @@ type (
 	Storage struct {
 		cfg    *Config
 		db     *buntdb.DB
-		eval   *storage.LogCondEval
 		logger logging.Logger
 	}
 
@@ -47,7 +46,7 @@ type (
 
 // NewStorage creates new logs meta storage based on BuntDB
 func NewStorage(cfg Config) *Storage {
-	return &Storage{cfg: &cfg, eval: storage.NewLogCondEval(ql.LogsCondDialect)}
+	return &Storage{cfg: &cfg}
 }
 
 // Init implements linker.Initializer
@@ -331,6 +330,10 @@ func (s *Storage) queryLogsByCondition(ctx context.Context, qr storage.QueryLogs
 	if err != nil {
 		return nil, fmt.Errorf("condition=%q parse error=%v: %w", qr.Condition, err, errors.ErrInvalid)
 	}
+	tstF, err := ql.BuildExprF(expr, ql.LogsCondDialect)
+	if err != nil {
+		return nil, fmt.Errorf("could not compile condition=%s: %w", qr.Condition, err)
+	}
 
 	limit := min(int(qr.Limit), 1000)
 	if qr.Limit == 0 {
@@ -350,12 +353,7 @@ func (s *Storage) queryLogsByCondition(ctx context.Context, qr storage.QueryLogs
 		if skipMarkedDeleted && le.Deleted {
 			return true
 		}
-		ok, evalErr := s.eval.Eval(le.Log, expr)
-		if evalErr != nil {
-			iterErr = fmt.Errorf("condition=%q eval error: %w", qr.Condition, evalErr)
-			return false
-		}
-		if ok {
+		if tstF(le.Log) {
 			total++
 			if len(qLogs) <= limit { // = for pagination
 				qLogs = append(qLogs, le.Log)
