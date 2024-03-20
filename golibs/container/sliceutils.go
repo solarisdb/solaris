@@ -79,7 +79,7 @@ func SliceExcludeOverlaps[V comparable](s1, s2 []V) ([]V, []V) {
 
 // SliceExludeS2Unique substracts elements s2 from the s1 and returns the following:
 // first param - elements that present in s1, but not in s2
-// second param - elements that presents in s1 and s2 both
+// second param - elements that present in s1 and s2 both
 func SliceExludeUniqueS2[V comparable](s1, s2 []V) ([]V, []V) {
 	m := make(map[V]bool)
 	for _, v := range s1 {

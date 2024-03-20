@@ -36,6 +36,8 @@ type (
 func positive[T any](_ T) bool { return true }
 func negative[T any](_ T) bool { return false }
 
+// BuildExprF allows to build the ExprF[T] function by the expression and the dialect provided. The result
+// function may be used for testing a value of T either it matches the expression or not.
 func BuildExprF[T any](expr *Expression, dialect Dialect[T]) (ExprF[T], error) {
 	if expr == nil {
 		return positive[T], nil
