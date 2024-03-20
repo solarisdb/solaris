@@ -57,8 +57,8 @@ type (
 
 	// Const contains the constant either string or float32 value
 	Const struct {
-		Number float32 ` @Number`
-		String string  ` | @String`
+		Number *float32 ` @Number`
+		String *string  ` | @String`
 	}
 
 	// Function is a functional parameter
@@ -99,7 +99,7 @@ const (
 // - array: ArrayParamID
 func (p Param) ID() string {
 	if p.Const != nil {
-		if p.Const.String != "" {
+		if p.Const.String != nil {
 			return StringParamID
 		}
 		return NumberParamID
@@ -114,7 +114,7 @@ func (p Param) ID() string {
 }
 
 // Name returns "value" of the constants (strings, numbers and the arrays) and names for the functions and identifiers
-func (p Param) Name() string {
+func (p Param) Name(full bool) string {
 	if p.Const != nil {
 		return p.Const.Value()
 	}
@@ -131,6 +131,10 @@ func (p Param) Name() string {
 		if i > 0 {
 			sb.WriteString(", ")
 		}
+		if !full && i > 3 && len(p.Array) > 10 {
+			sb.WriteString(fmt.Sprintf("... and %d more", len(p.Array)-4))
+			break
+		}
 		sb.WriteString(c.Value())
 	}
 	sb.WriteString("]")
@@ -139,10 +143,10 @@ func (p Param) Name() string {
 
 // Value returns string value of the constant
 func (c Const) Value() string {
-	if c.String != "" {
-		return c.String
+	if c.String != nil {
+		return *c.String
 	}
-	return fmt.Sprintf("%f", c.Number)
+	return fmt.Sprintf("%f", *c.Number)
 }
 
 // Parse parses the expr and in case of success returns AST
