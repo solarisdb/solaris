@@ -17,7 +17,6 @@ import (
 	"crypto/sha256"
 	"github.com/solarisdb/solaris/golibs/cast"
 	"github.com/solarisdb/solaris/golibs/strutil"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"sort"
@@ -67,7 +66,7 @@ func HashDir(path string, testFunc func(fi os.FileInfo) bool, recursive bool) (s
 	for _, name := range names {
 		h.Write(cast.StringToByteArray(name[len(path):]))
 		if files[name] {
-			data, err := ioutil.ReadFile(name)
+			data, err := os.ReadFile(name)
 			if err != nil {
 				return nil, err
 			}

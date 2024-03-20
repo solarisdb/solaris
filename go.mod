@@ -5,6 +5,7 @@ go 1.22.0
 require (
 	github.com/alecthomas/participle/v2 v2.1.1
 	github.com/alicebob/miniredis/v2 v2.31.1
+	github.com/aws/aws-sdk-go v1.51.4
 	github.com/davecgh/go-spew v1.1.1
 	github.com/edsrzf/mmap-go v1.1.0
 	github.com/ghodss/yaml v1.0.0
@@ -15,6 +16,7 @@ require (
 	github.com/oklog/ulid/v2 v2.1.0
 	github.com/spf13/cobra v1.8.0
 	github.com/stretchr/testify v1.9.0
+	github.com/tidwall/buntdb v1.3.0
 	google.golang.org/grpc v1.62.0
 	google.golang.org/protobuf v1.32.0
 )
@@ -25,10 +27,10 @@ require (
 	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
 	github.com/golang/protobuf v1.5.3 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
+	github.com/jmespath/go-jmespath v0.4.0 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/tidwall/btree v1.7.0 // indirect
-	github.com/tidwall/buntdb v1.3.0 // indirect
 	github.com/tidwall/gjson v1.17.1 // indirect
 	github.com/tidwall/grect v0.1.4 // indirect
 	github.com/tidwall/match v1.1.1 // indirect
