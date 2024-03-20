@@ -1,5 +1,5 @@
 # Expressions Query Language (QL)
-Solaris allows to specify filters for selecting Logs and their records in form of boolean exression. An expression is a text which consists contains constants, arguments and operations that form the request for selecting logs and their record. We will try to explain it concisely here so that the reader can apply it immediately.
+Solaris allows you to specify filters for selecting logs and their records in the form of Boolean expressions. An expression is a text that contains constants, arguments, and operations that form the query for selecting logs and their records. We will try to explain it briefly here so that the reader can apply it immediately.
 
 QL is a very simple language for writing boolean expressions. For example:
 
@@ -58,7 +58,8 @@ Examples:
 '1234' = '234' // compares two string constants, the result will be FALSE
 logID != "123" // compares log ID with the string "123", the result depends on the logID value
 tag("t1") > tag("t2") // compares value of the tag t1 with the value of the tag t2, the result depends on the tags values
-tag("t1") IN ["1", "2", "3"] // the value of t1 is either "1", "2", or "3"  
+tag("t1") IN ["1", "2", "3"] // the value of t1 is either "1", "2", or "3"
+tag("t1") LIKE 'abc%' // matches the value of tag t1 against the pattern 'abc%', where '%' is a wildcard that matches any sequence of characters  
 ```
 
 QL supports the following operations:
@@ -81,8 +82,8 @@ The QL expression is the series of boolean values that can be combined by AND, O
 
 Examples:
 ```
-tag('t1') != tag('t2') 
-ctime > "2024-02-12 00:00:00.000"
+tag('t1') != tag('t2') OR tag('t1') = 'abc' 
+ctime > "2024-02-12 00:00:00.000" AND ctime < "2024-03-12 00:00:00.000"
 ```
 
 ## That is it
