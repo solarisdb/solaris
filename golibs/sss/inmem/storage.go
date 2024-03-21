@@ -40,7 +40,7 @@ func NewStorage() *Storage {
 }
 
 // Get allows to read a value by its key. If key is not found the
-// ErrNotFound should be returned
+// ErrNotExist should be returned
 func (st *Storage) Get(key string) (io.ReadCloser, error) {
 	if !sss.IsKeyValid(key) {
 		return nil, fmt.Errorf("Storage.Get(): invalid key=%s", key)

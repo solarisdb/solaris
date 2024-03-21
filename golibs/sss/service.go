@@ -44,7 +44,7 @@ import (
 // the implementation
 type Storage interface {
 	// Get allows to read a value by its key. If key is not found the
-	// ErrNotFound should be returned
+	// ErrNotExist should be returned
 	Get(key string) (io.ReadCloser, error)
 
 	// Put allows to store value represented by reader r by the key
