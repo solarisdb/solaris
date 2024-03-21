@@ -21,6 +21,7 @@ import (
 	"github.com/solarisdb/solaris/golibs/logging"
 	"os"
 	"path/filepath"
+	"sync/atomic"
 )
 
 // Provider manages a pull of opened chunks and allows to return a Chunk object by request.
@@ -30,6 +31,7 @@ type Provider struct {
 	logger logging.Logger
 	dir    string
 	ccfg   Config
+	closed atomic.Bool
 	chunks *lru.ReleasableCache[string, *Chunk]
 }
 
@@ -49,12 +51,18 @@ func NewProvider(dir string, maxOpenedChunks int, cfg Config) *Provider {
 
 // GetOpenedChunk returns a lru.Releasable object for the *Chunk (ready to be used) by its ID.
 // The function may return ctx.Err() or ErrClosed errors
-func (p *Provider) GetOpenedChunk(ctx context.Context, id string) (lru.Releasable[*Chunk], error) {
-	return p.chunks.GetOrCreate(ctx, id)
+func (p *Provider) GetOpenedChunk(ctx context.Context, cID string, newFile bool) (lru.Releasable[*Chunk], error) {
+	if newFile && !p.closed.Load() {
+		if err := files.EnsureFileExists(p.getFileNameByID(cID)); err != nil {
+			return lru.Releasable[*Chunk]{}, err
+		}
+	}
+	return p.chunks.GetOrCreate(ctx, cID)
 }
 
 // Close implements the io.Closer
 func (p *Provider) Close() error {
+	p.closed.Store(true)
 	p.logger.Infof("Close() called")
 	return p.chunks.Close()
 }
@@ -69,17 +77,11 @@ func (p *Provider) openChunk(ctx context.Context, cID string) (*Chunk, error) {
 	p.logger.Debugf("opening chunk %v", c)
 	err := c.Open(false)
 	if errors.Is(err, errCorrupted) {
+		//TODO: this must be fixed later (!)
 		p.logger.Warnf("tried to open the chunk=%v, but got an corrupted error, will remove the file and try again: %v", c, err)
 		_ = os.Remove(c.fn)
+		files.EnsureFileExists(c.fn)
 		err = c.Open(false)
-	} else if errors.Is(err, errors.ErrNotExist) {
-		pth := p.getPathByID(c.id)
-		p.logger.Warnf("probably the folder %s doesn't exist, try to create a new one and open the chunk again: %v", pth, err)
-		if err = files.EnsureDirExists(pth); err != nil {
-			p.logger.Errorf("could not create the foler=%s, giving up", pth, err)
-		} else {
-			err = c.Open(false)
-		}
 	}
 
 	if err != nil {

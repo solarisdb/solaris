@@ -127,7 +127,7 @@ func (l *localLog) AppendRecords(ctx context.Context, request *solaris.AppendRec
 			ci = ChunkInfo{ID: ulidutils.NewID()}
 			l.logger.Infof("creating new chunk id=%s for the logID=%s", ci.ID, lid)
 		}
-		rc, err := l.ChnkProvider.GetOpenedChunk(ctx, ci.ID)
+		rc, err := l.ChnkProvider.GetOpenedChunk(ctx, ci.ID, ci.RecordsCount == 0)
 		if err != nil {
 			gerr = err
 			break
@@ -253,7 +253,7 @@ func (l *localLog) readRecords(
 	limit int,
 	totalSize *int,
 ) ([]*solaris.Record, error) {
-	rc, err := l.ChnkProvider.GetOpenedChunk(ctx, ci.ID)
+	rc, err := l.ChnkProvider.GetOpenedChunk(ctx, ci.ID, false)
 	if err != nil {
 		return nil, err
 	}

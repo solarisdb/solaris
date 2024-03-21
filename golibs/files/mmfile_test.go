@@ -32,6 +32,7 @@ func TestOpenCloseMMFile(t *testing.T) {
 
 	fsz := int64(23451 * 4096)
 	fn := path.Join(dir, "testFile")
+	assert.Nil(t, EnsureFileExists(fn))
 	mmf, err := NewMMFile(fn, fsz)
 	assert.Nil(t, err)
 	defer mmf.Close()
@@ -79,6 +80,7 @@ func TestGrowMMFile(t *testing.T) {
 
 	fsz := int64(8 * 4096)
 	fn := path.Join(dir, "testFile")
+	assert.Nil(t, EnsureFileExists(fn))
 	mmf, err := NewMMFile(fn, fsz)
 	assert.Nil(t, err)
 	defer mmf.Close()
@@ -105,7 +107,7 @@ func TestGrowMMFile(t *testing.T) {
 	assert.Equal(t, buf, res)
 }
 
-func TestParrallelMMFile(t *testing.T) {
+func TestParallelMMFile(t *testing.T) {
 	dir, err := os.MkdirTemp("", "TestParrallelMMFile")
 	assert.Nil(t, err)
 	defer os.RemoveAll(dir) // clean up
@@ -114,6 +116,7 @@ func TestParrallelMMFile(t *testing.T) {
 
 	fsz := int64(ps * 10)
 	fn := path.Join(dir, "testFile2")
+	EnsureFileExists(fn)
 	mmf, err := NewMMFile(fn, fsz)
 	assert.Nil(t, err)
 	defer mmf.Close()

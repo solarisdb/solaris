@@ -15,7 +15,7 @@ import (
 func TestProvider_closed(t *testing.T) {
 	p := NewProvider("", 1, GetDefaultConfig())
 	p.Close()
-	_, err := p.GetOpenedChunk(context2.Background(), "la la")
+	_, err := p.GetOpenedChunk(context2.Background(), "la la", true)
 	assert.True(t, errors.Is(err, errors.ErrClosed))
 }
 
@@ -29,18 +29,20 @@ func TestProvider_lifeCycle(t *testing.T) {
 	defer os.RemoveAll(dir)
 
 	p := NewProvider(dir, 1, GetDefaultConfig())
-	rc, err := p.GetOpenedChunk(context2.Background(), "lala")
+	_, err = p.GetOpenedChunk(context2.Background(), "lala", false)
+	assert.NotNil(t, err)
+	rc, err := p.GetOpenedChunk(context2.Background(), "lala", true)
 	assert.Nil(t, err)
 	p.ReleaseChunk(&rc)
 
-	rc, err = p.GetOpenedChunk(context2.Background(), "bbbb")
+	rc, err = p.GetOpenedChunk(context2.Background(), "bbbb", true)
 	assert.Nil(t, err)
 
 	var wg sync.WaitGroup
 	wg.Add(1)
 	var c2 lru.Releasable[*Chunk]
 	go func() {
-		c2, err = p.GetOpenedChunk(context2.Background(), "lala")
+		c2, err = p.GetOpenedChunk(context2.Background(), "lala", true)
 		wg.Done()
 	}()
 	time.Sleep(time.Millisecond * 100)
@@ -50,13 +52,13 @@ func TestProvider_lifeCycle(t *testing.T) {
 
 	p.ReleaseChunk(&c2)
 
-	c2, err = p.GetOpenedChunk(context2.Background(), "lala")
+	c2, err = p.GetOpenedChunk(context2.Background(), "lala", true)
 	assert.Nil(t, err)
 	assert.NotNil(t, c2)
 	go func() {
 		p.Close()
 	}()
-	rc, err = p.GetOpenedChunk(context2.Background(), "bbbb")
+	rc, err = p.GetOpenedChunk(context2.Background(), "bbbb", true)
 	assert.Equal(t, errors.ErrClosed, err)
 
 	assert.NotNil(t, c2.Value().mmf)
@@ -72,17 +74,17 @@ func TestProvider_contextClosed(t *testing.T) {
 	p := NewProvider(dir, 1, GetDefaultConfig())
 	defer p.Close()
 
-	c, err := p.GetOpenedChunk(context2.Background(), "lala")
+	c, err := p.GetOpenedChunk(context2.Background(), "lala", true)
 	assert.Nil(t, err)
 
 	ctx, cancel := context2.WithTimeout(context2.Background(), 100*time.Millisecond)
 	defer cancel()
 	for i := 0; i < 10; i++ {
 		go func() {
-			p.GetOpenedChunk(ctx, fmt.Sprintf("b%dbb", i))
+			p.GetOpenedChunk(ctx, fmt.Sprintf("b%dbb", i), true)
 		}()
 	}
-	_, err = p.GetOpenedChunk(ctx, "bbbb")
+	_, err = p.GetOpenedChunk(ctx, "bbbb", true)
 	assert.Equal(t, ctx.Err(), err)
 	time.Sleep(time.Millisecond * 100)
 

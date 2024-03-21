@@ -16,6 +16,7 @@ package files
 import (
 	"archive/zip"
 	"fmt"
+	"github.com/solarisdb/solaris/golibs/errors"
 	"github.com/solarisdb/solaris/golibs/strutil"
 	"io"
 	"os"
@@ -55,7 +56,7 @@ func GetRoot(path string) (string, string) {
 	return path[:idx], path[idx+1:]
 }
 
-// EnsureDirExists checks whether the dir exists and create the new one if it doesn't
+// EnsureDirExists checks whether the dir exists and creates the new one if it doesn't
 func EnsureDirExists(dir string) error {
 	d, err := os.Open(dir)
 	if err != nil {
@@ -68,6 +69,27 @@ func EnsureDirExists(dir string) error {
 
 	if err != nil {
 		return fmt.Errorf("ensure dir %s returns error: %w", dir, err)
+	}
+	return nil
+}
+
+// EnsureFileExists checks whether the file exists and creates the new one if it doesn't. The function will create
+// directories which don't exist in the file path
+func EnsureFileExists(fn string) error {
+	dir, _ := filepath.Split(fn)
+	if err := EnsureDirExists(dir); err != nil {
+		return err
+	}
+	_, err := os.Stat(fn)
+	if err != nil {
+		if !errors.Is(err, errors.ErrNotExist) {
+			return err
+		}
+		f, err := os.Create(fn)
+		if err != nil {
+			return err
+		}
+		f.Close()
 	}
 	return nil
 }

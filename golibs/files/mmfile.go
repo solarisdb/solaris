@@ -41,26 +41,21 @@ var _ bytes.Buffer = (*MMFile)(nil)
 
 const BlockSize = 4096
 
-// NewMMFile creates new or open an existing file, and it maps a region with at least the minSize into map.
+// NewMMFile opens an existing file, and it maps a region with at least the minSize into map.
 // If minSize is positive, then minSize must be multiplied on BlockSize.
-// If the file doesn't exist, or its initial size is less than the minSize, the file physical size will be extended to
+// If the file size is less than the minSize, the file physical size will be extended to
 // the minSize.
 // if the existing file size is greater than minSize provided, the mapped region will be for the actual file size.
 func NewMMFile(fname string, minSize int64) (*MMFile, error) {
 	var err error
 	var fi os.FileInfo
 	fi, err = os.Stat(fname)
-	created := false
+	if err != nil {
+		return nil, err
+	}
+
 	if minSize < 0 {
-		if err != nil {
-			return nil, fmt.Errorf("could not read info for the file %s and the mapped size=%d", fname, minSize)
-		}
 		minSize = fi.Size()
-	} else if err != nil {
-		if !errors.Is(err, os.ErrNotExist) {
-			return nil, err
-		}
-		created = true
 	}
 
 	if err := checkSize(minSize); err != nil {
@@ -68,24 +63,15 @@ func NewMMFile(fname string, minSize int64) (*MMFile, error) {
 	}
 
 	var f *os.File
-	f, err = os.OpenFile(fname, os.O_RDWR|os.O_CREATE, 0666)
+	f, err = os.OpenFile(fname, os.O_RDWR, 0666)
 	if err != nil {
 		return nil, fmt.Errorf("could not open file %s: %w", fname, err)
 	}
 	defer func() {
-		if err == nil {
-			return
-		}
-		f.Close()
-		if created {
-			_ = os.Remove(fname)
+		if err != nil {
+			f.Close()
 		}
 	}()
-
-	fi, err = f.Stat()
-	if err != nil {
-		return nil, fmt.Errorf("could not read file %s info after mapping: %w", fname, err)
-	}
 
 	if fi.Size() < minSize {
 		// Extend the file for correct mapping on the MacOS
