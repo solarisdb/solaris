@@ -18,6 +18,7 @@ sss package stays for Simple Storage Service which provides an interface to the 
 package sss
 
 import (
+	"context"
 	"io"
 	"strings"
 )
@@ -45,10 +46,10 @@ import (
 type Storage interface {
 	// Get allows to read a value by its key. If key is not found the
 	// ErrNotExist should be returned
-	Get(key string) (io.ReadCloser, error)
+	Get(ctx context.Context, key string) (io.ReadCloser, error)
 
 	// Put allows to store value represented by reader r by the key
-	Put(key string, r io.Reader) error
+	Put(ctx context.Context, key string, r io.Reader) error
 
 	// List returns a list of keys and sub-paths (part of an existing path which
 	// is a path itself), which have the prefix of the path argument
@@ -57,11 +58,11 @@ type Storage interface {
 	// for the keys list: "/abc", "/def/abc", "/def/aa1"
 	// List("/") -> "/abc", "/def/"
 	// List("/def/") -> "/def/abc", "/def/aa1"
-	List(path string) ([]string, error)
+	List(ctx context.Context, path string) ([]string, error)
 
 	// Delete allows to delete a value by key. If the key doesn't exist, the operation
 	// will return no error
-	Delete(key string) error
+	Delete(ctx context.Context, key string) error
 }
 
 // IsKeyValid checks whether the key is valid: <path><keysuffix> where the keysuffix is a string without '/'

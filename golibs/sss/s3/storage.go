@@ -47,12 +47,12 @@ func (st *Storage) Init(_ context.Context) error {
 }
 
 // Get receives value by its key
-func (st *Storage) Get(key string) (io.ReadCloser, error) {
+func (st *Storage) Get(ctx context.Context, key string) (io.ReadCloser, error) {
 	if !sss.IsKeyValid(key) {
 		return nil, fmt.Errorf("Storage.Get(): invalid key=%s: %w", key, errors.ErrInvalid)
 	}
 
-	res, err := st.client.GetObject(&s3.GetObjectInput{
+	res, err := st.client.GetObjectWithContext(ctx, &s3.GetObjectInput{
 		Bucket: aws.String(st.Bucket),
 		Key:    aws.String(toS3Path(key)),
 	})
@@ -64,12 +64,12 @@ func (st *Storage) Get(key string) (io.ReadCloser, error) {
 }
 
 // Put allows to store value represented by reader r by the key
-func (st *Storage) Put(key string, r io.Reader) error {
+func (st *Storage) Put(ctx context.Context, key string, r io.Reader) error {
 	if !sss.IsKeyValid(key) {
 		return fmt.Errorf("Storage.Put(): invalid key=%s: %w", key, errors.ErrInvalid)
 	}
 
-	_, err := st.client.PutObject(&s3.PutObjectInput{
+	_, err := st.client.PutObjectWithContext(ctx, &s3.PutObjectInput{
 		Body:   aws.ReadSeekCloser(r),
 		Bucket: aws.String(st.Bucket),
 		Key:    aws.String(toS3Path(key)),
@@ -82,7 +82,7 @@ func (st *Storage) Put(key string, r io.Reader) error {
 
 // List returns a list of keys and sub-paths (part of an existing path which
 // is a path itself), which have the prefix of the path argument
-func (st *Storage) List(path string) ([]string, error) {
+func (st *Storage) List(ctx context.Context, path string) ([]string, error) {
 	if !sss.IsPathValid(path) {
 		return nil, fmt.Errorf("Storage.List(): path=%s is incorrect: %w", path, errors.ErrInvalid)
 	}
@@ -97,7 +97,7 @@ func (st *Storage) List(path string) ([]string, error) {
 
 	res := make([]string, 0, 10)
 	for {
-		result, err := st.client.ListObjects(input)
+		result, err := st.client.ListObjectsWithContext(ctx, input)
 		if err != nil {
 			return nil, toError(err)
 		}
@@ -118,13 +118,13 @@ func (st *Storage) List(path string) ([]string, error) {
 	return res, nil
 }
 
-// Delete allows to delete a value by key. Will return ErrNotFound if the key is not found
-func (st *Storage) Delete(key string) error {
+// Delete allows to delete a value by key. Will return errors.ErrNotExist if the key is not found
+func (st *Storage) Delete(ctx context.Context, key string) error {
 	if !sss.IsKeyValid(key) {
 		return fmt.Errorf("Storage.Delete(): invalid key=%s: %w", key, errors.ErrInvalid)
 	}
 
-	_, err := st.client.DeleteObject(&s3.DeleteObjectInput{
+	_, err := st.client.DeleteObjectWithContext(ctx, &s3.DeleteObjectInput{
 		Bucket: aws.String(st.Bucket),
 		Key:    aws.String(toS3Path(key)),
 	})
