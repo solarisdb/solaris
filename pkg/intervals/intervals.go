@@ -1,3 +1,17 @@
+// Copyright 2024 The Solaris Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//	http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package intervals
 
 import (
@@ -10,7 +24,10 @@ import (
 )
 
 type (
-	// Basis contains constants and functions for work with values of type T
+	// Basis represents a basis for a set of vectors,
+	// it defines what [min,max] range the vectors have and
+	// what operations are available for the vectors, like:
+	// create, intersect, union, etc.
 	Basis[T any] struct {
 		Min  T                  // min value of the type T
 		Max  T                  // max value of the type T
@@ -22,7 +39,6 @@ type (
 	Interval[T any] struct {
 		L   T
 		R   T
-		B   Basis[T]
 		LIn bool
 		RIn bool
 	}
@@ -51,44 +67,199 @@ var (
 	)
 )
 
+// ===================== basis =====================
+
 // NewBasis creates new basis
 func NewBasis[T any](min, max T, cmpF func(v1, v2 T) int) Basis[T] {
 	return Basis[T]{Min: min, Max: max, CmpF: cmpF}
 }
 
-// ===================== interval =====================
-
 // Open create an open interval `(1, 5)`
-func Open[T any](L, R T, B Basis[T]) Interval[T] {
-	if B.CmpF(L, R) > 0 {
+func (b Basis[T]) Open(L, R T) Interval[T] {
+	if b.CmpF(L, R) > 0 {
 		panic(fmt.Sprintf("invalid open interval L > R: %v >= %v", L, R))
 	}
-	return Interval[T]{L: L, R: R, B: B}
+	return Interval[T]{L: L, R: R}
 }
 
 // OpenL create a left-open interval `(1, 5]`
-func OpenL[T any](L, R T, B Basis[T]) Interval[T] {
-	if B.CmpF(L, R) >= 0 {
+func (b Basis[T]) OpenL(L, R T) Interval[T] {
+	if b.CmpF(L, R) >= 0 {
 		panic(fmt.Sprintf("invalid open L interval L >= R: %v >= %v", L, R))
 	}
-	return Interval[T]{L: L, R: R, B: B, RIn: true}
+	return Interval[T]{L: L, R: R, RIn: true}
 }
 
 // OpenR creates a right-open interval `[1, 5)`
-func OpenR[T any](L, R T, B Basis[T]) Interval[T] {
-	if B.CmpF(L, R) >= 0 {
+func (b Basis[T]) OpenR(L, R T) Interval[T] {
+	if b.CmpF(L, R) >= 0 {
 		panic(fmt.Sprintf("invalid open R interval L >= R: %v >= %v", L, R))
 	}
-	return Interval[T]{L: L, R: R, B: B, LIn: true}
+	return Interval[T]{L: L, R: R, LIn: true}
 }
 
 // Closed creates a closed interval `[1, 5]`
-func Closed[T any](L, R T, B Basis[T]) Interval[T] {
-	if B.CmpF(L, R) > 0 {
+func (b Basis[T]) Closed(L, R T) Interval[T] {
+	if b.CmpF(L, R) > 0 {
 		panic(fmt.Sprintf("invalid closed interval L > R: %v >= %v", L, R))
 	}
-	return Interval[T]{L: L, R: R, B: B, LIn: true, RIn: true}
+	return Interval[T]{L: L, R: R, LIn: true, RIn: true}
 }
+
+// Negate negates the current interval, meaning that it returns
+// the complement of the current interval.
+func (b Basis[T]) Negate(i Interval[T]) []Interval[T] {
+	// open
+	if i.IsOpen() {
+		if b.CmpF(i.L, i.R) == 0 { // !(L, L) = [min, max]
+			return []Interval[T]{b.Closed(b.Min, b.Max)}
+		}
+		// !(L, R) = [min, L] & [R, max]
+		return []Interval[T]{b.Closed(b.Min, i.L), b.Closed(i.R, b.Max)}
+	}
+	//half-open
+	if i.IsOpenL() {
+		if b.CmpF(i.R, b.Max) == 0 { // !(L, max] = [min, L]
+			return []Interval[T]{b.Closed(b.Min, i.L)}
+		}
+		// !(L, R] = [min, L] & (R, max]
+		return []Interval[T]{b.Closed(b.Min, i.L), b.OpenL(i.R, b.Max)}
+	}
+	if i.IsOpenR() {
+		if b.CmpF(i.L, b.Min) == 0 { // ![min, R) = [R, max]
+			return []Interval[T]{b.Closed(i.R, b.Max)}
+		}
+		// ![L, R) = [min, L) & [R, max]
+		return []Interval[T]{b.OpenR(b.Min, i.L), b.Closed(i.R, b.Max)}
+	}
+	// closed
+	if i.IsClosed() {
+		if b.CmpF(i.L, b.Min) == 0 && b.CmpF(i.R, b.Max) == 0 { // ![min, max] = (L, L)
+			return []Interval[T]{b.Open(i.L, i.L)}
+		}
+		if b.CmpF(i.L, b.Min) == 0 { // ![min, R] = (R, max]
+			return []Interval[T]{b.OpenL(i.R, b.Max)}
+		}
+		if b.CmpF(i.R, b.Max) == 0 { // ![L, max] = [min, L)
+			return []Interval[T]{b.OpenR(b.Min, i.L)}
+		}
+		// ![L, R] = [min, L) && (R, max]
+		return []Interval[T]{b.OpenR(b.Min, i.L), b.OpenL(i.R, b.Max)}
+	}
+	panic("unknown interval type")
+}
+
+// Intersect returns the intersection of the given interval
+// with the current interval. If no intersection is found the
+// function returns false in the second return value.
+// NOTE: The `(L=1, R=3)` and `(L=2, R=4)` intervals are considered
+// to have an intersection and the `(L=1, R=3).Intersect((L=2, R=4))`
+// call returns `(L=2, R=3)`.
+func (b Basis[T]) Intersect(i1, i2 Interval[T]) (Interval[T], bool) {
+	if b.Before(i1, i2) || b.After(i1, i2) {
+		return Interval[T]{}, false
+	}
+	res := Interval[T]{}
+	if b.StartsBefore(i1, i2) {
+		res.L = i2.L
+		res.LIn = i2.LIn
+	} else {
+		res.L = i1.L
+		res.LIn = i1.LIn
+	}
+	if b.EndsAfter(i1, i2) {
+		res.R = i2.R
+		res.RIn = i2.RIn
+	} else {
+		res.R = i1.R
+		res.RIn = i1.RIn
+	}
+	return res, true
+}
+
+// Union returns the union of the given interval with the current interval
+// only if there is an intersection. If no intersection is found the function
+// returns false in the second return value.
+// NOTE: The `(L=1, R=3)` and `(L=2, R=4)` intervals are
+// considered to have an intersection (see Intersection description)
+// the `(L=1, R=3).Union((L=2, R=4))` call returns `(L=1, R=4)`.
+func (b Basis[T]) Union(i1, i2 Interval[T]) (Interval[T], bool) {
+	if b.Before(i1, i2) || b.After(i1, i2) {
+		return Interval[T]{}, false
+	}
+	res := Interval[T]{}
+	if b.StartsBefore(i1, i2) {
+		res.L = i1.L
+		res.LIn = i1.LIn
+	} else {
+		res.L = i2.L
+		res.LIn = i2.LIn
+	}
+	if b.EndsAfter(i1, i2) {
+		res.R = i1.R
+		res.RIn = i1.RIn
+	} else {
+		res.R = i2.R
+		res.RIn = i2.RIn
+	}
+	return res, true
+}
+
+// After returns true if the L border of the current interval
+// is lesser than the R border of the given interval.
+// NOTE: The `(L=1, R=3)` and `(L=2, R=4)` intervals are
+// considered to have an intersection (see Intersection description)
+// and the `(L=2, R=4).After.((L=1, R=3))` call returns false.
+func (b Basis[T]) After(i1, i2 Interval[T]) bool {
+	// i2.R] [i1.L
+	if (i1.IsClosed() || i1.IsOpenR()) && (i2.IsClosed() || i2.IsOpenL()) {
+		return b.CmpF(i1.L, i2.R) > 0
+	}
+	// i2.R) [i1.L | i2.R] (i1.L | i2.R) (i1.L
+	return b.CmpF(i1.L, i2.R) >= 0
+}
+
+// Before returns true if the R border of current interval
+// is lesser than the L border of the given interval.
+// NOTE: The `(L=1, R=3)` and `(L=2, R=4)` intervals are
+// considered to have an intersection (see Intersection description)
+// and the `(L=1, R=3).Before.((L=2, R=4))` call returns false.
+func (b Basis[T]) Before(i1, i2 Interval[T]) bool {
+	// i1.R] [i2.L
+	if (i1.IsClosed() || i1.IsOpenL()) && (i2.IsClosed() || i2.IsOpenR()) {
+		return b.CmpF(i1.R, i2.L) < 0
+	}
+	// i1.R) [i2.L | i1.R] (i2.L | i1.R) (i2.L
+	return b.CmpF(i1.R, i2.L) <= 0
+}
+
+// StartsBefore returns true if the L border of the current interval
+// is lesser than the L border of the given interval.
+// NOTE: The `(L=2, ...` and `[L=3, ...` starts are equivalent, but
+// the function returns true for `(L=2, R=5).StartsBefore([L=3, R=4])`.
+func (b Basis[T]) StartsBefore(i1, i2 Interval[T]) bool {
+	// [i1.L (i2.L
+	if (i1.IsClosed() || i1.IsOpenR()) && (i2.IsOpen() || i2.IsOpenL()) {
+		return b.CmpF(i1.L, i2.L) <= 0
+	}
+	// [i1.L [i2.L | (i1.L (i2.L | (i1.L [i2.L
+	return b.CmpF(i1.L, i2.L) < 0
+}
+
+// EndsAfter returns true if the R border of the current interval
+// is greater than the R border of the given interval.
+// NOTE: The `..., R=5)` and `..., R=4]` ends are equivalent, but
+// the function returns true for `(L=2, R=5).EndsAfter([L=3, R=4])`.
+func (b Basis[T]) EndsAfter(i1, i2 Interval[T]) bool {
+	// i2.R) i1.R]
+	if (i1.IsClosed() || i1.IsOpenL()) && (i2.IsOpen() || i2.IsOpenR()) {
+		return b.CmpF(i1.R, i2.R) >= 0
+	}
+	// i2.R] i1.R] | i2.R) i1.R) | i2.R] i1.R)
+	return b.CmpF(i1.R, i2.R) > 0
+}
+
+// ===================== interval =====================
 
 // IsOpen returns true if interval is open
 func (i Interval[T]) IsOpen() bool {
@@ -108,159 +279,6 @@ func (i Interval[T]) IsOpenR() bool {
 // IsClosed returns true if interval is closed
 func (i Interval[T]) IsClosed() bool {
 	return i.LIn && i.RIn
-}
-
-// Negate negates the current interval, meaning that it returns
-// the complement of the current interval.
-func (i Interval[T]) Negate() []Interval[T] {
-	// open
-	if i.IsOpen() {
-		if i.B.CmpF(i.L, i.R) == 0 { // !(L, L) = [min, max]
-			return []Interval[T]{Closed(i.B.Min, i.B.Max, i.B)}
-		}
-		// !(L, R) = [min, L] & [R, max]
-		return []Interval[T]{Closed(i.B.Min, i.L, i.B), Closed(i.R, i.B.Max, i.B)}
-	}
-	//half-open
-	if i.IsOpenL() {
-		if i.B.CmpF(i.R, i.B.Max) == 0 { // !(L, max] = [min, L]
-			return []Interval[T]{Closed(i.B.Min, i.L, i.B)}
-		}
-		// !(L, R] = [min, L] & (R, max]
-		return []Interval[T]{Closed(i.B.Min, i.L, i.B), OpenL(i.R, i.B.Max, i.B)}
-	}
-	if i.IsOpenR() {
-		if i.B.CmpF(i.L, i.B.Min) == 0 { // ![min, R) = [R, max]
-			return []Interval[T]{Closed(i.R, i.B.Max, i.B)}
-		}
-		// ![L, R) = [min, L) & [R, max]
-		return []Interval[T]{OpenR(i.B.Min, i.L, i.B), Closed(i.R, i.B.Max, i.B)}
-	}
-	// closed
-	if i.IsClosed() {
-		if i.B.CmpF(i.L, i.B.Min) == 0 && i.B.CmpF(i.R, i.B.Max) == 0 { // ![min, max] = (L, L)
-			return []Interval[T]{Open(i.L, i.L, i.B)}
-		}
-		if i.B.CmpF(i.L, i.B.Min) == 0 { // ![min, R] = (R, max]
-			return []Interval[T]{OpenL(i.R, i.B.Max, i.B)}
-		}
-		if i.B.CmpF(i.R, i.B.Max) == 0 { // ![L, max] = [min, L)
-			return []Interval[T]{OpenR(i.B.Min, i.L, i.B)}
-		}
-		// ![L, R] = [min, L) && (R, max]
-		return []Interval[T]{OpenR(i.B.Min, i.L, i.B), OpenL(i.R, i.B.Max, i.B)}
-	}
-	panic("unknown interval type")
-}
-
-// Intersect returns the intersection of the given interval
-// with the current interval. If no intersection is found the
-// function returns false in the second return value.
-// NOTE: The `(L=1, R=3)` and `(L=2, R=4)` intervals are considered
-// to have an intersection and the `(L=1, R=3).Intersect((L=2, R=4))`
-// call returns `(L=2, R=3)`.
-func (i Interval[T]) Intersect(o Interval[T]) (Interval[T], bool) {
-	if i.Before(o) || i.After(o) {
-		return Interval[T]{}, false
-	}
-	res := Interval[T]{B: i.B}
-	if i.StartsBefore(o) {
-		res.L = o.L
-		res.LIn = o.LIn
-	} else {
-		res.L = i.L
-		res.LIn = i.LIn
-	}
-	if i.EndsAfter(o) {
-		res.R = o.R
-		res.RIn = o.RIn
-	} else {
-		res.R = i.R
-		res.RIn = i.RIn
-	}
-	return res, true
-}
-
-// Union returns the union of the given interval with the current interval
-// only if there is an intersection. If no intersection is found the function
-// returns false in the second return value.
-// NOTE: The `(L=1, R=3)` and `(L=2, R=4)` intervals are
-// considered to have an intersection (see Intersection description)
-// the `(L=1, R=3).Union((L=2, R=4))` call returns `(L=1, R=4)`.
-func (i Interval[T]) Union(o Interval[T]) (Interval[T], bool) {
-	if i.Before(o) || i.After(o) {
-		return Interval[T]{}, false
-	}
-	res := Interval[T]{B: i.B}
-	if i.StartsBefore(o) {
-		res.L = i.L
-		res.LIn = i.LIn
-	} else {
-		res.L = o.L
-		res.LIn = o.LIn
-	}
-	if i.EndsAfter(o) {
-		res.R = i.R
-		res.RIn = i.RIn
-	} else {
-		res.R = o.R
-		res.RIn = o.RIn
-	}
-	return res, true
-}
-
-// After returns true if the L border of the current interval
-// is lesser than the R border of the given interval.
-// NOTE: The `(L=1, R=3)` and `(L=2, R=4)` intervals are
-// considered to have an intersection (see Intersection description)
-// and the `(L=2, R=4).After.((L=1, R=3))` call returns false.
-func (i Interval[T]) After(o Interval[T]) bool {
-	// o.R] [i.L
-	if (i.IsClosed() || i.IsOpenR()) && (o.IsClosed() || o.IsOpenL()) {
-		return i.B.CmpF(i.L, o.R) > 0
-	}
-	// o.R) [i.L | o.R] (i.L | o.R) (i.L
-	return i.B.CmpF(i.L, o.R) >= 0
-}
-
-// Before returns true if the R border of current interval
-// is lesser than the L border of the given interval.
-// NOTE: The `(L=1, R=3)` and `(L=2, R=4)` intervals are
-// considered to have an intersection (see Intersection description)
-// and the `(L=1, R=3).Before.((L=2, R=4))` call returns false.
-func (i Interval[T]) Before(o Interval[T]) bool {
-	// i.R] [o.L
-	if (i.IsClosed() || i.IsOpenL()) && (o.IsClosed() || o.IsOpenR()) {
-		return i.B.CmpF(i.R, o.L) < 0
-	}
-	// i.R) [o.L | i.R] (o.L | i.R) (o.L
-	return i.B.CmpF(i.R, o.L) <= 0
-}
-
-// StartsBefore returns true if the L border of the current interval
-// is lesser than the L border of the given interval.
-// NOTE: The `(L=2, ...` and `[L=3, ...` starts are equivalent, but
-// the function returns true for `(L=2, R=5).StartsBefore([L=3, R=4])`.
-func (i Interval[T]) StartsBefore(o Interval[T]) bool {
-	// [i.L (o.L
-	if (i.IsClosed() || i.IsOpenR()) && (o.IsOpen() || o.IsOpenL()) {
-		return i.B.CmpF(i.L, o.L) <= 0
-	}
-	// [i.L [o.L | (i.L (o.L | (i.L [o.L
-	return i.B.CmpF(i.L, o.L) < 0
-}
-
-// EndsAfter returns true if the R border of the current interval
-// is greater than the R border of the given interval.
-// NOTE: The `..., R=5)` and `..., R=4]` ends are equivalent, but
-// the function returns true for `(L=2, R=5).EndsAfter([L=3, R=4])`.
-func (i Interval[T]) EndsAfter(o Interval[T]) bool {
-	// o.R) i.R]
-	if (i.IsClosed() || i.IsOpenL()) && (o.IsOpen() || o.IsOpenR()) {
-		return i.B.CmpF(i.R, o.R) >= 0
-	}
-	// o.R] i.R] | o.R) i.R) | o.R] i.R)
-	return i.B.CmpF(i.R, o.R) > 0
 }
 
 // String returns the string representation of the interval

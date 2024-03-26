@@ -1,3 +1,17 @@
+// Copyright 2024 The Solaris Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//	http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package ql
 
 import (
@@ -83,7 +97,7 @@ func (ib *ParamIntervalBuilder[T, K]) buildXCond(and *XCondition) ([]intervals.I
 	}
 	var negated []intervals.Interval[T]
 	for _, t := range res {
-		negated = append(negated, t.Negate()...)
+		negated = append(negated, ib.basis.Negate(t)...)
 	}
 	return negated, nil
 }
@@ -168,13 +182,13 @@ func (ib *ParamIntervalBuilder[T, K]) union(intervalsL []intervals.Interval[T]) 
 		return intervalsL
 	}
 	sort.Slice(intervalsL, func(i, j int) bool {
-		return intervalsL[i].StartsBefore(intervalsL[j])
+		return ib.basis.StartsBefore(intervalsL[i], intervalsL[j])
 	})
 	var res []intervals.Interval[T]
 	prev := intervalsL[0]
 	for i := 1; i < len(intervalsL); i++ {
 		curr := intervalsL[i]
-		if union, ok := prev.Union(curr); ok {
+		if union, ok := ib.basis.Union(prev, curr); ok {
 			prev = union
 			continue
 		}
@@ -195,7 +209,7 @@ func (ib *ParamIntervalBuilder[T, K]) intersect(groups [][]intervals.Interval[T]
 		var group []intervals.Interval[T]
 		for j := 0; j < len(prev); j++ {
 			for k := 0; k < len(curr); k++ {
-				if t, ok := prev[j].Intersect(curr[k]); ok {
+				if t, ok := ib.basis.Intersect(prev[j], curr[k]); ok {
 					group = append(group, t)
 				}
 			}
@@ -208,17 +222,17 @@ func (ib *ParamIntervalBuilder[T, K]) intersect(groups [][]intervals.Interval[T]
 func (ib *ParamIntervalBuilder[T, K]) getIntervals(op string, val T) []intervals.Interval[T] {
 	switch op {
 	case "<":
-		return []intervals.Interval[T]{intervals.OpenR(ib.basis.Min, val, ib.basis)}
+		return []intervals.Interval[T]{ib.basis.OpenR(ib.basis.Min, val)}
 	case ">":
-		return []intervals.Interval[T]{intervals.OpenL(val, ib.basis.Max, ib.basis)}
+		return []intervals.Interval[T]{ib.basis.OpenL(val, ib.basis.Max)}
 	case "<=":
-		return []intervals.Interval[T]{intervals.Closed(ib.basis.Min, val, ib.basis)}
+		return []intervals.Interval[T]{ib.basis.Closed(ib.basis.Min, val)}
 	case ">=":
-		return []intervals.Interval[T]{intervals.Closed(val, ib.basis.Max, ib.basis)}
+		return []intervals.Interval[T]{ib.basis.Closed(val, ib.basis.Max)}
 	case "=":
-		return []intervals.Interval[T]{intervals.Closed(val, val, ib.basis)}
+		return []intervals.Interval[T]{ib.basis.Closed(val, val)}
 	case "!=":
-		return intervals.Closed(val, val, ib.basis).Negate()
+		return ib.basis.Negate(ib.basis.Closed(val, val))
 	}
 	return nil
 }
