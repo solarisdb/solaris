@@ -149,8 +149,8 @@ func (b Basis[T]) Negate(i Interval[T]) []Interval[T] {
 	panic("unknown interval type")
 }
 
-// Intersect returns the intersection of the given interval
-// with the current interval. If no intersection is found the
+// Intersect returns the intersection of the i1 interval
+// with the i2 interval. If no intersection is found the
 // function returns false in the second return value.
 // NOTE: The `(L=1, R=3)` and `(L=2, R=4)` intervals are considered
 // to have an intersection and the `(L=1, R=3).Intersect((L=2, R=4))`
@@ -177,7 +177,7 @@ func (b Basis[T]) Intersect(i1, i2 Interval[T]) (Interval[T], bool) {
 	return res, true
 }
 
-// Union returns the union of the given interval with the current interval
+// Union returns the union of the i1 interval with the i2 interval
 // only if there is an intersection. If no intersection is found the function
 // returns false in the second return value.
 // NOTE: The `(L=1, R=3)` and `(L=2, R=4)` intervals are
@@ -205,8 +205,8 @@ func (b Basis[T]) Union(i1, i2 Interval[T]) (Interval[T], bool) {
 	return res, true
 }
 
-// After returns true if the L border of the current interval
-// is lesser than the R border of the given interval.
+// After returns true if the L border of the i1 interval
+// is lesser than the R border of the i2 interval.
 // NOTE: The `(L=1, R=3)` and `(L=2, R=4)` intervals are
 // considered to have an intersection (see Intersection description)
 // and the `(L=2, R=4).After.((L=1, R=3))` call returns false.
@@ -219,8 +219,8 @@ func (b Basis[T]) After(i1, i2 Interval[T]) bool {
 	return b.CmpF(i1.L, i2.R) >= 0
 }
 
-// Before returns true if the R border of current interval
-// is lesser than the L border of the given interval.
+// Before returns true if the R border of i1 interval
+// is lesser than the L border of the i2 interval.
 // NOTE: The `(L=1, R=3)` and `(L=2, R=4)` intervals are
 // considered to have an intersection (see Intersection description)
 // and the `(L=1, R=3).Before.((L=2, R=4))` call returns false.
@@ -233,8 +233,8 @@ func (b Basis[T]) Before(i1, i2 Interval[T]) bool {
 	return b.CmpF(i1.R, i2.L) <= 0
 }
 
-// StartsBefore returns true if the L border of the current interval
-// is lesser than the L border of the given interval.
+// StartsBefore returns true if the L border of the i1 interval
+// is lesser than the L border of the i2 interval.
 // NOTE: The `(L=2, ...` and `[L=3, ...` starts are equivalent, but
 // the function returns true for `(L=2, R=5).StartsBefore([L=3, R=4])`.
 func (b Basis[T]) StartsBefore(i1, i2 Interval[T]) bool {
@@ -246,8 +246,8 @@ func (b Basis[T]) StartsBefore(i1, i2 Interval[T]) bool {
 	return b.CmpF(i1.L, i2.L) < 0
 }
 
-// EndsAfter returns true if the R border of the current interval
-// is greater than the R border of the given interval.
+// EndsAfter returns true if the R border of the i1 interval
+// is greater than the R border of the i2 interval.
 // NOTE: The `..., R=5)` and `..., R=4]` ends are equivalent, but
 // the function returns true for `(L=2, R=5).EndsAfter([L=3, R=4])`.
 func (b Basis[T]) EndsAfter(i1, i2 Interval[T]) bool {
