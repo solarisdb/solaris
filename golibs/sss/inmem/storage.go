@@ -16,6 +16,7 @@ package inmem
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"github.com/solarisdb/solaris/golibs/errors"
 	"github.com/solarisdb/solaris/golibs/sss"
@@ -41,7 +42,7 @@ func NewStorage() *Storage {
 
 // Get allows to read a value by its key. If key is not found the
 // ErrNotExist should be returned
-func (st *Storage) Get(key string) (io.ReadCloser, error) {
+func (st *Storage) Get(_ context.Context, key string) (io.ReadCloser, error) {
 	if !sss.IsKeyValid(key) {
 		return nil, fmt.Errorf("Storage.Get(): invalid key=%s", key)
 	}
@@ -54,7 +55,7 @@ func (st *Storage) Get(key string) (io.ReadCloser, error) {
 }
 
 // Put allows to store value represented by reader r by the key
-func (st *Storage) Put(key string, r io.Reader) error {
+func (st *Storage) Put(_ context.Context, key string, r io.Reader) error {
 	if !sss.IsKeyValid(key) {
 		return fmt.Errorf("Storage.Put(): invalid key=%s", key)
 	}
@@ -76,7 +77,7 @@ func (st *Storage) Put(key string, r io.Reader) error {
 // for the keys list: "/abc", "/def/abc", "/def/aa1"
 // List("/") -> "/abc", "/def/"
 // List("/def/") -> "/def/abc", "/def/aa1"
-func (st *Storage) List(path string) ([]string, error) {
+func (st *Storage) List(_ context.Context, path string) ([]string, error) {
 	if !sss.IsPathValid(path) {
 		return nil, fmt.Errorf("Storage.List(): invalid path=%s", path)
 	}
@@ -102,12 +103,15 @@ func (st *Storage) List(path string) ([]string, error) {
 }
 
 // Delete allows to delete a value by key. If the key doesn't exist, the operation
-// will return no error
-func (st *Storage) Delete(key string) error {
+// will return no errors.ErrNotExist
+func (st *Storage) Delete(_ context.Context, key string) error {
 	if !sss.IsKeyValid(key) {
 		return fmt.Errorf("Storage.Delete(): invalid key=%s", key)
 	}
 
+	if _, ok := st.storage[key]; !ok {
+		return errors.ErrNotExist
+	}
 	delete(st.storage, key)
 	return nil
 }
