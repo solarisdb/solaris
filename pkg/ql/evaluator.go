@@ -24,7 +24,7 @@ import (
 )
 
 type (
-	// ExprF represet the Expression function to evaluate the expression for the type T
+	// ExprF represents the Expression function to evaluate the expression for the type T
 	ExprF[T any] func(t T) bool
 
 	exprBuilder[T any] struct {
@@ -179,7 +179,7 @@ func (eb *exprBuilder[T]) buildCond(cn *Condition) (err error) {
 			return fmt.Errorf("the first parameter %s is not applicable for the operation %s: %w", p1.Name(false), cn.Op, errors.ErrInvalid)
 		}
 		if d2.Flags&PfComparable == 0 && d2.Flags&PfGreaterLess == 0 {
-			return fmt.Errorf("the first parameter %s is not applicable for the operation %s: %w", p2.Name(false), cn.Op, errors.ErrInvalid)
+			return fmt.Errorf("the second parameter %s is not applicable for the operation %s: %w", p2.Name(false), cn.Op, errors.ErrInvalid)
 		}
 		p2vf, err := eb.paramDialect2ValueF(d2, p2, &d.Type)
 		if err != nil {
@@ -191,7 +191,7 @@ func (eb *exprBuilder[T]) buildCond(cn *Condition) (err error) {
 			return fmt.Errorf("the first parameter %s is not applicable for the operation %s: %w", p1.Name(false), cn.Op, errors.ErrInvalid)
 		}
 		if d2.Flags&PfComparable == 0 {
-			return fmt.Errorf("the first parameter %s is not applicable for the operation %s: %w", p2.Name(false), cn.Op, errors.ErrInvalid)
+			return fmt.Errorf("the second parameter %s is not applicable for the operation %s: %w", p2.Name(false), cn.Op, errors.ErrInvalid)
 		}
 		p2vf, err := eb.paramDialect2ValueF(d2, p2, &d.Type)
 		if err != nil {

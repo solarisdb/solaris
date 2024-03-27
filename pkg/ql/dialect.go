@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"github.com/solarisdb/solaris/api/gen/solaris/v1"
 	"github.com/solarisdb/solaris/golibs/errors"
+	"time"
 )
 
 const (
@@ -118,6 +119,25 @@ var (
 				return log.Tags[p.Function.Params[0].Name(true)], nil
 			},
 			Type: VTString,
+		},
+	}
+	RecordsCondDialect = Dialect[*solaris.Record]{
+		StringParamID: { // strings are rvalues only
+			Flags: PfRValue | PfComparable | PfConstValue,
+			ValueF: func(p *Param, _ *solaris.Record) (any, error) {
+				return p.Const.Value(), nil
+			},
+			Type: VTString,
+		},
+		"ctime": {
+			Flags: PfLValue | PfComparable,
+			ValueF: func(p *Param, r *solaris.Record) (any, error) {
+				if r.CreatedAt != nil {
+					return r.CreatedAt.AsTime(), nil
+				}
+				return time.Time{}, nil
+			},
+			Type: VTTime,
 		},
 	}
 )
