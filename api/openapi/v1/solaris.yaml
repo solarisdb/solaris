@@ -1,0 +1,335 @@
+openapi: 3.0.3
+info:
+  title: 'SolarisDB API'
+  version: 1.0.0
+paths:
+  /logs:
+    post:
+      summary: Create log
+      description: Create log.
+      operationId: CreateLog
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateLogRequest'
+      responses:
+        201:
+          description: The log was created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Log'
+    get:
+      summary: Query logs
+      description: Query logs.
+      operationId: QueryLogs
+      parameters:
+        - $ref: '#/components/parameters/FilterCondition'
+        - $ref: '#/components/parameters/FromPageId'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        200:
+          description: The query was successful.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QueryLogsResult'
+    delete:
+      summary: Delete logs
+      description: Delete logs.
+      operationId: DeleteLogs
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeleteLogsRequest'
+      responses:
+        204:
+          description: The logs matching the filter condition were deleted.
+
+  /logs/{logId}:
+    put:
+      summary: Update log
+      description: Update log.
+      operationId: UpdateLog
+      parameters:
+        - $ref: '#/components/parameters/LogId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateLogRequest'
+      responses:
+        200:
+          description: The log was updated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Log'
+        404:
+          description: The log was not found.
+
+  /logs/{logId}/records:
+    post:
+      summary: Create records
+      description: Create records.
+      operationId: CreateRecords
+      parameters:
+        - $ref: '#/components/parameters/LogId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateRecordsRequest'
+      responses:
+        201:
+          description: The records were created.
+        404:
+          description: The log was not found.
+
+  /records:
+    post:
+      summary: Query records
+      description: Query records.
+      operationId: QueryRecords
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/QueryRecordsRequest'
+      responses:
+        200:
+          description: The query was successful.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QueryRecordsResult'
+
+  /ping:
+    get:
+      summary: Health check
+      description: Check if the server is up and running.
+      operationId: Ping
+      responses:
+        200:
+          description: The ping was successful.
+          content:
+            application/json:
+              schema:
+                type: string
+
+components:
+  schemas:
+    Log:
+      type: object
+      description: The log object.
+      required:
+        - id
+        - tags
+        - records
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          type: string
+          description: The log identifier.
+        tags:
+          $ref: '#/components/schemas/Tags'
+        records:
+          type: integer
+          description: The number of records in the log.
+        createdAt:
+          type: string
+          description: The timestamp when the log was created.
+          format: date-time
+        updatedAt:
+          type: string
+          description: The timestamp when the log was updated (new records added or tags are applied).
+          format: date-time
+
+    Tags:
+      type: object
+      description: The log tags.
+      additionalProperties:
+        type: string
+
+    Record:
+      type: object
+      description: The record object.
+      required:
+        - id
+        - logId
+        - payload
+        - createdAt
+      properties:
+        id:
+          type: string
+          description: The record identifier.
+        logId:
+          type: string
+          description: The log identifier.
+        payload:
+          type: string
+          description: The record payload.
+          format: byte
+        createdAt:
+          type: string
+          description: The timestamp when the record was created.
+          format: date-time
+
+    CreateLogRequest:
+      type: object
+      description: The request object to create log.
+      required:
+        - tags
+      properties:
+        tags:
+          $ref: '#/components/schemas/Tags'
+
+    UpdateLogRequest:
+      type: object
+      description: The request object to update log.
+      required:
+        - tags
+      properties:
+        tags:
+          $ref: '#/components/schemas/Tags'
+
+    QueryLogsResult:
+      type: object
+      description: The response object to the query logs request.
+      required:
+        - items
+        - total
+      properties:
+        items:
+          type: array
+          description: The list of found logs.
+          items:
+            $ref: '#/components/schemas/Log'
+        nextPageId:
+          type: string
+          description: The id of the next page.
+        total:
+          type: integer
+          description: The total number of found logs.
+
+    DeleteLogsRequest:
+      type: object
+      description: The request object to delete logs.
+      required:
+        - filterCondition
+      properties:
+        filterCondition:
+          type: string
+          description: The filter condition.
+
+    CreateRecordRequest:
+      type: object
+      description: The request object to create a record.
+      required:
+        - payload
+      properties:
+        payload:
+          type: string
+          description: The record payload.
+          format: byte
+
+    CreateRecordsRequest:
+      type: object
+      description: The request object to create records.
+      required:
+        - records
+      properties:
+        records:
+          type: array
+          description: The list of records to be created.
+          items:
+            $ref: '#/components/schemas/CreateRecordRequest'
+
+    QueryRecordsRequest:
+      type: object
+      description: The request object to query records.
+      properties:
+        logsFilterCondition:
+          type: string
+          description: The logs filter condition.
+        recsFilterCondition:
+          type: string
+          description: The records filter condition.
+        logIds:
+          type: array
+          description: The log ids filter. If specified, the logsFilterCondition is ignored.
+          items:
+            type: string
+        desc:
+          type: boolean
+          description: If true, the result returns records with ids equal to or less than fromPageId.
+        fromPageId:
+          type: string
+          description: The fromPageId specifies from which page to start returning the results.
+        limit:
+          type: integer
+          description: The maximum number of records per page.
+
+    QueryRecordsResult:
+      type: object
+      description: The response object to the query records request.
+      required:
+        - items
+        - total
+      properties:
+        items:
+          type: array
+          description: The list of found records.
+          items:
+            $ref: '#/components/schemas/Record'
+        nextPageId:
+          type: string
+          description: The id of the next page.
+        total:
+          type: integer
+          description: The total number of found records.
+
+  parameters:
+    #
+    # In path params
+    #
+    LogId:
+      in: path
+      name: logId
+      description: The log identifier.
+      required: true
+      schema:
+        type: string
+
+    #
+    # Query params
+    #
+    FilterCondition:
+      in: query
+      name: filterCondition
+      description: The filter condition.
+      required: false
+      schema:
+        type: string
+    Limit:
+      in: query
+      name: limit
+      description: The max number of objects to return per page.
+      required: false
+      schema:
+        type: integer
+    FromPageId:
+      in: query
+      name: fromPageId
+      description: The id of the page to start returning the results from.
+      required: false
+      schema:
+        type: string

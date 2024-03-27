@@ -172,14 +172,14 @@ func TestInterval_NegateClosed(t *testing.T) {
 	assert.Equal(t, b.Min, n1.L)
 	assert.Equal(t, i.L, n1.R)
 
-	// [1, 1]
+	// [1, 2]
 	i = b.Closed(1, 2)
 	g := b.Negate(i)
 	n1, n2 := g[0], g[1]
 	assert.True(t, n1.IsOpenR()) // [min, 1)
 	assert.Equal(t, b.Min, n1.L)
 	assert.Equal(t, i.L, n1.R)
-	assert.True(t, n2.IsOpenL()) // (1, max]
+	assert.True(t, n2.IsOpenL()) // (2, max]
 	assert.Equal(t, i.R, n2.L)
 	assert.Equal(t, b.Max, n2.R)
 
@@ -203,7 +203,7 @@ func TestInterval_IntersectOpen(t *testing.T) {
 	assert.False(t, ok)
 
 	i1 = b.Open(1, 3)            // (1, 3)
-	i2 = b.Open(2, 4)            // (2, 3)
+	i2 = b.Open(2, 4)            // (2, 4)
 	i3, ok = b.Intersect(i1, i2) // (2, 3)
 	assert.True(t, ok)
 	assert.True(t, i3.IsOpen())
@@ -274,7 +274,7 @@ func TestInterval_UnionOpen(t *testing.T) {
 	assert.False(t, ok)
 
 	i1 = b.Open(1, 3)        // (1, 3)
-	i2 = b.Open(2, 4)        // (2, 3)
+	i2 = b.Open(2, 4)        // (2, 4)
 	i3, ok = b.Union(i1, i2) // (1, 3)
 	assert.True(t, ok)
 	assert.True(t, i3.IsOpen())
