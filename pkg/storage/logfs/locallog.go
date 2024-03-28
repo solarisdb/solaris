@@ -59,13 +59,13 @@ type (
 	// ChunkInfo is the descriptor which describes a chunk information in the log meta-storage
 	ChunkInfo struct {
 		// ID is the chunk ID
-		ID string
+		ID string `json:"id"`
 		// Min is the minimum (first) record ID stored in the chunk
-		Min ulid.ULID
+		Min ulid.ULID `json:"min"`
 		// Max is the maximum (last) record ID stored in the chunk
-		Max ulid.ULID
+		Max ulid.ULID `json:"max"`
 		// RecordsCount is the number of records stored in the chunk
-		RecordsCount int
+		RecordsCount int `json:"recordsCount"`
 	}
 )
 
